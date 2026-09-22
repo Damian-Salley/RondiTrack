@@ -84,6 +84,9 @@ public class InMemoryRondiTrackRepository : IRondiTrackRepository
             stokvel1
         };
     }
+
+    //CRUD Operations for Stokvel
+    //Get stokvel by ID
     public Task<Stokvel?> GetStokvelByIdAsync(int id)
     {
         var stokvel = _stokvels.FirstOrDefault(stokvel => stokvel.Id == id);
@@ -91,6 +94,7 @@ public class InMemoryRondiTrackRepository : IRondiTrackRepository
         return Task.FromResult(stokvel);
     }
 
+    //Get all stokvels
     public Task<IReadOnlyCollection<Stokvel>> GetStokvelsAsync()
     {
         IReadOnlyCollection<Stokvel> stokvels = _stokvels.AsReadOnly();
@@ -105,6 +109,7 @@ public class InMemoryRondiTrackRepository : IRondiTrackRepository
         return Task.CompletedTask;
     }
 
+    //Update an existing stokvel
     public Task<bool> UpdateStokvelAsync(Stokvel stokvel)
     {
         var index = _stokvels.FindIndex(existingStokvel => existingStokvel.Id == stokvel.Id);
@@ -119,6 +124,7 @@ public class InMemoryRondiTrackRepository : IRondiTrackRepository
         return Task.FromResult(true);
     }
 
+    //Delete a stokvel by ID
     public Task<bool> DeleteStokvelAsync(int id)
     {
         var stokvel = _stokvels.FirstOrDefault(stokvel => stokvel.Id == id);
