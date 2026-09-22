@@ -50,8 +50,13 @@ public class UsersController : ControllerBase
 
         await _repository.AddUserAsync(user);
 
-        return CreatedAtAction(nameof(GetUser), new { id = user.Id }, user);
+        return CreatedAtAction(
+            nameof(GetUser),
+            new { id = user.Id },
+            user);
     }
+
+
 
     //Update an existing user
     [HttpPut("{id:int}")]
@@ -79,6 +84,9 @@ public class UsersController : ControllerBase
 
         return Ok(existingUser);
     }
+
+    [HttpPost]
+
 
     //Delete a user by ID
     [HttpDelete("{id:int}")]

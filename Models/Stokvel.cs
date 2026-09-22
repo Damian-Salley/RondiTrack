@@ -34,6 +34,7 @@ public class Stokvel
 
     public IReadOnlyCollection<User> Members => _members.AsReadOnly();
 
+    //Method to add a member to the stokvel
     public void AddMember(User user)
     {
         if (user is null)
@@ -48,6 +49,25 @@ public class Stokvel
         _members.Add(user);
     }
 
+    //Method to update stokvel details
+    public void UpdateDetails(string name, decimal contributionAmount)
+    {
+        //Name Validation
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            throw new ArgumentException("Name cannot be null or empty.", nameof(name));
+        }
+
+        //Contribution Amount Validation
+        if (contributionAmount <= 0)
+        {
+            throw new ArgumentException("Contribution amount must be greater than 0.", nameof(contributionAmount));
+        }
+        ContributionAmount = contributionAmount;
+        Name = name;
+    }
+
+    //Method to remove a member from the stokvel
     public void RemoveMember(User user)
     {
         if (user is null)
