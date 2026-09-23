@@ -1,10 +1,21 @@
 using RondiTrack.Models;
+using RondiTrack.DTOs.Users;
 
 namespace RondiTrack.Repositories;
 
 public class InMemoryRondiTrackRepository : IRondiTrackRepository
 
 {
+    private readonly List<Contribution> _contributions = new();
+
+    //Add a member to a stokvel
+    public Task AddContributionAsync(Contribution contribution)
+    {
+        _contributions.Add(contribution);
+        return Task.CompletedTask;
+    }
+
+
     //CRUD Operations for User
     //Get all users
     public Task<IReadOnlyCollection<User>> GetUsersAsync()
@@ -137,5 +148,19 @@ public class InMemoryRondiTrackRepository : IRondiTrackRepository
         _stokvels.Remove(stokvel);
 
         return Task.FromResult(true);
+    }
+
+    //Get a contribution by stokvel ID, user ID, and cycle
+    public Task<Contribution?> GetContributionAsync(
+    int stokvelId,
+    int userId,
+    int cycle)
+    {
+        var contribution = _contributions.FirstOrDefault(c =>
+            c.StokvelId == stokvelId &&
+            c.UserId == userId &&
+            c.Cycle == cycle);
+
+        return Task.FromResult(contribution);
     }
 }

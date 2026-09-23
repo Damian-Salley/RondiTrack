@@ -1,5 +1,6 @@
 using RondiTrack.Models;
 
+
 namespace RondiTrack.Repositories;
 
 public interface IRondiTrackRepository
@@ -8,7 +9,7 @@ public interface IRondiTrackRepository
     Task<IReadOnlyCollection<User>> GetUsersAsync();
     Task<User?> GetUserByIdAsync(int id);
     Task AddUserAsync(User user);
-     Task<bool> UpdateUserAsync(User user);
+    Task<bool> UpdateUserAsync(User user);
     Task<bool> DeleteUserAsync(int id);
 
     //CRUD Operations for Stokvel
@@ -17,4 +18,6 @@ public interface IRondiTrackRepository
     Task AddStokvelAsync(Stokvel stokvel);
     Task<bool> UpdateStokvelAsync(Stokvel stokvel);
     Task<bool> DeleteStokvelAsync(int id);
+    Task AddContributionAsync(Contribution contribution);
+    Task<Contribution?> GetContributionAsync(int stokvelId, int userId, int cycle);
 }

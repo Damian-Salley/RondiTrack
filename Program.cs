@@ -1,11 +1,16 @@
 using RondiTrack.Repositories;
 using Scalar.AspNetCore;
+using RondiTrack.Services;
+using RondiTrack.Idempotency;
 
 var builder = WebApplication.CreateBuilder(args);
+
 
 builder.Services.AddOpenApi();
 builder.Services.AddControllers();
 builder.Services.AddSingleton<IRondiTrackRepository, InMemoryRondiTrackRepository>();
+builder.Services.AddSingleton<IIdempotencyStore, InMemoryIdempotencyStore>();
+builder.Services.AddSingleton<IRondiTrackService, RondiTrackService>();
 
 var app = builder.Build();
 
