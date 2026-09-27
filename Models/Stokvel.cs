@@ -1,4 +1,5 @@
 namespace RondiTrack.Models;
+using RondiTrack.Exceptions;
 
 public class Stokvel
 {
@@ -43,7 +44,7 @@ public class Stokvel
         }
         if (_members.Any(member => member.Id == user.Id))
         {
-            throw new InvalidOperationException("User is already a member of this stokvel.");
+            throw new BusinessRuleException("User is already a member of this stokvel.");
         }
 
         _members.Add(user);
@@ -76,7 +77,7 @@ public class Stokvel
         }
         if (!_members.Any(member => member.Id == user.Id))
         {
-            throw new InvalidOperationException("User is not a member of this stokvel.");
+            throw new BusinessRuleException("User is not a member of this stokvel.");
         }
 
         _members.Remove(user);

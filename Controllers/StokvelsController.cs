@@ -5,6 +5,7 @@ using RondiTrack.DTOs.Contributions;
 using RondiTrack.Mappers;
 using RondiTrack.Repositories;
 using RondiTrack.Services;
+using RondiTrack.Exceptions;
 
 namespace RondiTrack.Controllers;
 
@@ -47,10 +48,8 @@ public class StokvelsController : ControllerBase
 
         if (stokvel is null)
         {
-            return Problem(
-                statusCode: StatusCodes.Status404NotFound,
-                title: "Stokvel not found",
-                detail: $"No stokvel with ID {id} was found.");
+            throw new NotFoundException(
+                $"No stokvel with ID {id} was found.");
         }
 
         return Ok(StokvelMapper.ToResponse(stokvel));
@@ -66,32 +65,20 @@ public class StokvelsController : ControllerBase
 
         if (existingStokvel is not null)
         {
-            return Problem(
-                statusCode: StatusCodes.Status409Conflict,
-                title: "Stokvel already exists",
-                detail: $"A stokvel with ID {request.Id} already exists.");
+            throw new BusinessRuleException(
+                $"A stokvel with ID {request.Id} already exists.");
         }
 
-        try
-        {
-            var stokvel = StokvelMapper.ToDomain(request);
+        var stokvel = StokvelMapper.ToDomain(request);
 
-            await _repository.AddStokvelAsync(stokvel);
+        await _repository.AddStokvelAsync(stokvel);
 
-            var response = StokvelMapper.ToResponse(stokvel);
+        var response = StokvelMapper.ToResponse(stokvel);
 
-            return CreatedAtAction(
-                nameof(GetStokvel),
-                new { id = stokvel.Id },
-                response);
-        }
-        catch (ArgumentException ex)
-        {
-            return Problem(
-                statusCode: StatusCodes.Status422UnprocessableEntity,
-                title: "Invalid stokvel details",
-                detail: ex.Message);
-        }
+        return CreatedAtAction(
+            nameof(GetStokvel),
+            new { id = stokvel.Id },
+            response);
     }
 
     // Update a stokvel
@@ -104,27 +91,15 @@ public class StokvelsController : ControllerBase
 
         if (stokvel is null)
         {
-            return Problem(
-                statusCode: StatusCodes.Status404NotFound,
-                title: "Stokvel not found",
-                detail: $"No stokvel with ID {id} was found.");
+            throw new NotFoundException(
+                $"No stokvel with ID {id} was found.");
         }
 
-        try
-        {
-            StokvelMapper.Update(stokvel, request);
+        StokvelMapper.Update(stokvel, request);
 
-            await _repository.UpdateStokvelAsync(stokvel);
+        await _repository.UpdateStokvelAsync(stokvel);
 
-            return Ok(StokvelMapper.ToResponse(stokvel));
-        }
-        catch (ArgumentException ex)
-        {
-            return Problem(
-                statusCode: StatusCodes.Status422UnprocessableEntity,
-                title: "Invalid stokvel details",
-                detail: ex.Message);
-        }
+        return Ok(StokvelMapper.ToResponse(stokvel));
     }
 
     // Delete a stokvel
@@ -135,10 +110,8 @@ public class StokvelsController : ControllerBase
 
         if (!deleted)
         {
-            return Problem(
-                statusCode: StatusCodes.Status404NotFound,
-                title: "Stokvel not found",
-                detail: $"No stokvel with ID {id} was found.");
+            throw new NotFoundException(
+                $"No stokvel with ID {id} was found.");
         }
 
         return NoContent();
@@ -153,10 +126,8 @@ public class StokvelsController : ControllerBase
 
         if (stokvel is null)
         {
-            return Problem(
-                statusCode: StatusCodes.Status404NotFound,
-                title: "Stokvel not found",
-                detail: $"No stokvel with ID {stokvelId} was found.");
+            throw new NotFoundException(
+                $"No stokvel with ID {stokvelId} was found.");
         }
 
         var responses = new List<UserResponse>();
@@ -175,27 +146,9 @@ public class StokvelsController : ControllerBase
         int stokvelId,
         int userId)
     {
-        try
-        {
-            await _service.AddMemberAsync(stokvelId, userId);
+        await _service.AddMemberAsync(stokvelId, userId);
 
-            return Ok();
-        }
-        catch (InvalidOperationException ex)
-        {
-            if (ex.Message.Contains("not found"))
-            {
-                return Problem(
-                    statusCode: StatusCodes.Status404NotFound,
-                    title: "Resource not found",
-                    detail: ex.Message);
-            }
-
-            return Problem(
-                statusCode: StatusCodes.Status422UnprocessableEntity,
-                title: "Membership rule violated",
-                detail: ex.Message);
-        }
+        return Ok();
     }
 
     // Remove a member from a stokvel
@@ -204,84 +157,33 @@ public class StokvelsController : ControllerBase
         int stokvelId,
         int userId)
     {
-        try
-        {
-            await _service.RemoveMemberAsync(stokvelId, userId);
+        await _service.RemoveMemberAsync(stokvelId, userId);
 
-            return NoContent();
-        }
-        catch (InvalidOperationException ex)
-        {
-            if (ex.Message.Contains("not found"))
-            {
-                return Problem(
-                    statusCode: StatusCodes.Status404NotFound,
-                    title: "Resource not found",
-                    detail: ex.Message);
-            }
-
-            return Problem(
-                statusCode: StatusCodes.Status422UnprocessableEntity,
-                title: "Membership rule violated",
-                detail: ex.Message);
-        }
+        return NoContent();
     }
 
-    // Record a contribution
-    [HttpPost("{stokvelId:int}/members/{userId:int}/contributions")]
-    public async Task<ActionResult<ContributionResponse>> RecordContribution(
-        int stokvelId,
-        int userId,
-        RecordContributionRequest request,
-        [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey)
+   // Record a contribution
+[HttpPost("{stokvelId:int}/members/{userId:int}/contributions")]
+public async Task<ActionResult<ContributionResponse>> RecordContribution(
+    int stokvelId,
+    int userId,
+    RecordContributionRequest request,
+    [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey)
+{
+    if (string.IsNullOrWhiteSpace(idempotencyKey))
     {
-        if (string.IsNullOrWhiteSpace(idempotencyKey))
-        {
-            return Problem(
-                statusCode: StatusCodes.Status400BadRequest,
-                title: "Idempotency key required",
-                detail: "The Idempotency-Key header is required.");
-        }
+        return Problem(
+            statusCode: StatusCodes.Status400BadRequest,
+            title: "Idempotency key required",
+            detail: "The Idempotency-Key header is required.");
+    }
 
-        try
-        {
-            var contribution = await _service.RecordContributionAsync(
-                stokvelId,
-                userId,
-                request.Cycle,
-                idempotencyKey);
+    var contribution = await _service.RecordContributionAsync(
+        stokvelId,
+        userId,
+        request.Cycle,
+        idempotencyKey);
 
-            return Ok(ContributionMapper.ToResponse(contribution));
-        }
-        catch (ArgumentException ex)
-        {
-            return Problem(
-                statusCode: StatusCodes.Status422UnprocessableEntity,
-                title: "Invalid contribution",
-                detail: ex.Message);
-        }
-        catch (InvalidOperationException ex)
-        {
-            if (ex.Message.Contains("not found"))
-            {
-                return Problem(
-                    statusCode: StatusCodes.Status404NotFound,
-                    title: "Resource not found",
-                    detail: ex.Message);
-            }
-
-            if (ex.Message.Contains("Idempotency key"))
-            {
-                return Problem(
-                    statusCode: StatusCodes.Status409Conflict,
-                    title: "Idempotency conflict",
-                    detail: ex.Message);
-            }
-
-            return Problem(
-                statusCode: StatusCodes.Status422UnprocessableEntity,
-                title: "Contribution rule violated",
-                detail: ex.Message);
-        }
+    return Ok(ContributionMapper.ToResponse(contribution));
     }
 }

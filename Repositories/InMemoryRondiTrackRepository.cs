@@ -7,6 +7,7 @@ public class InMemoryRondiTrackRepository : IRondiTrackRepository
 
 {
     private readonly List<Contribution> _contributions = new();
+    private readonly List<ContributionCycle> _contributionCycles = new();
 
     //Add a member to a stokvel
     public Task AddContributionAsync(Contribution contribution)
@@ -162,5 +163,47 @@ public class InMemoryRondiTrackRepository : IRondiTrackRepository
             c.Cycle == cycle);
 
         return Task.FromResult(contribution);
+    }
+    public Task<IReadOnlyCollection<ContributionCycle>> GetContributionCyclesAsync()
+    {
+        IReadOnlyCollection<ContributionCycle> cycles =
+            _contributionCycles.ToList();
+
+        return Task.FromResult(cycles);
+    }
+
+    public Task<ContributionCycle?> GetContributionCycleByIdAsync(int id)
+    {
+        var cycle = _contributionCycles
+            .FirstOrDefault(c => c.Id == id);
+
+        return Task.FromResult(cycle);
+    }
+
+    public Task AddContributionCycleAsync(ContributionCycle cycle)
+    {
+        _contributionCycles.Add(cycle);
+
+        return Task.CompletedTask;
+    }
+
+    public Task UpdateContributionCycleAsync(ContributionCycle cycle)
+    {
+        return Task.CompletedTask;
+    }
+
+    public Task<bool> DeleteContributionCycleAsync(int id)
+    {
+        var cycle = _contributionCycles
+            .FirstOrDefault(c => c.Id == id);
+
+        if (cycle is null)
+        {
+            return Task.FromResult(false);
+        }
+
+        _contributionCycles.Remove(cycle);
+
+        return Task.FromResult(true);
     }
 }

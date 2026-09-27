@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Mvc;
 using RondiTrack.DTOs.Users;
 using RondiTrack.Mappers;
 using RondiTrack.Repositories;
+using RondiTrack.Services;
+using RondiTrack.Exceptions;
 
 namespace RondiTrack.Controllers;
 
@@ -40,10 +42,8 @@ public class UsersController : ControllerBase
 
         if (user is null)
         {
-            return Problem(
-                statusCode: StatusCodes.Status404NotFound,
-                title: "User not found",
-                detail: $"No user with ID {id} was found.");
+            throw new NotFoundException(
+                $"No user with ID {id} was found.");
         }
 
         return Ok(UserMapper.ToResponse(user));
@@ -58,32 +58,24 @@ public class UsersController : ControllerBase
 
         if (existingUser is not null)
         {
-            return Problem(
-                statusCode: StatusCodes.Status409Conflict,
-                title: "User already exists",
-                detail: $"A user with ID {request.Id} already exists.");
+            if (existingUser is not null)
+            {
+                throw new BusinessRuleException(
+                    $"A user with ID {request.Id} already exists.");
+            }
         }
 
-        try
-        {
-            var user = UserMapper.ToDomain(request);
 
-            await _repository.AddUserAsync(user);
+        var user = UserMapper.ToDomain(request);
 
-            var response = UserMapper.ToResponse(user);
+        await _repository.AddUserAsync(user);
 
-            return CreatedAtAction(
-                nameof(GetUser),
-                new { id = user.Id },
-                response);
-        }
-        catch (ArgumentException ex)
-        {
-            return Problem(
-                statusCode: StatusCodes.Status422UnprocessableEntity,
-                title: "Invalid user details",
-                detail: ex.Message);
-        }
+        var response = UserMapper.ToResponse(user);
+
+        return CreatedAtAction(
+            nameof(GetUser),
+            new { id = user.Id },
+            response);
     }
 
     // Update an existing user
@@ -96,27 +88,15 @@ public class UsersController : ControllerBase
 
         if (existingUser is null)
         {
-            return Problem(
-                statusCode: StatusCodes.Status404NotFound,
-                title: "User not found",
-                detail: $"No user with ID {id} was found.");
+            throw new NotFoundException(
+                $"No user with ID {id} was found.");
         }
 
-        try
-        {
-            UserMapper.Update(existingUser, request);
+        UserMapper.Update(existingUser, request);
 
-            await _repository.UpdateUserAsync(existingUser);
+        await _repository.UpdateUserAsync(existingUser);
 
-            return Ok(UserMapper.ToResponse(existingUser));
-        }
-        catch (ArgumentException ex)
-        {
-            return Problem(
-                statusCode: StatusCodes.Status422UnprocessableEntity,
-                title: "Invalid user details",
-                detail: ex.Message);
-        }
+        return Ok(UserMapper.ToResponse(existingUser));
     }
 
     // Delete a user by ID
@@ -127,10 +107,8 @@ public class UsersController : ControllerBase
 
         if (!deleted)
         {
-            return Problem(
-                statusCode: StatusCodes.Status404NotFound,
-                title: "User not found",
-                detail: $"No user with ID {id} was found.");
+            throw new NotFoundException(
+                $"No user with ID {id} was found.");
         }
 
         return NoContent();

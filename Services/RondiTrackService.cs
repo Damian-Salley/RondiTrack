@@ -4,6 +4,8 @@ using RondiTrack.DTOs.Users;
 using RondiTrack.DTOs.Stokvels;
 using RondiTrack.Mappers;
 using RondiTrack.Idempotency;
+using RondiTrack.Exceptions;
+
 
 namespace RondiTrack.Services;
 
@@ -29,14 +31,14 @@ public class RondiTrackService : IRondiTrackService
 
         if (stokvel is null)
         {
-            throw new InvalidOperationException("Stokvel not found.");
+            throw new NotFoundException("Stokvel not found.");
         }
 
         var user = await _repository.GetUserByIdAsync(userId);
 
         if (user is null)
         {
-            throw new InvalidOperationException("User not found.");
+            throw new NotFoundException("User not found.");
         }
 
         stokvel.AddMember(user);
@@ -50,14 +52,14 @@ public class RondiTrackService : IRondiTrackService
 
         if (stokvel is null)
         {
-            throw new InvalidOperationException("Stokvel not found.");
+            throw new NotFoundException("Stokvel not found.");
         }
 
         var user = await _repository.GetUserByIdAsync(userId);
 
         if (user is null)
         {
-            throw new InvalidOperationException("User not found.");
+            throw new NotFoundException("User not found.");
         }
 
         stokvel.RemoveMember(user);
@@ -71,51 +73,70 @@ public class RondiTrackService : IRondiTrackService
     {
         var payload = $"{stokvelId}:{userId}:{cycle}";
 
-        var existingRecord = await _idempotencyStore.GetAsync(idempotencyKey);
+        var existingRecord =
+            await _idempotencyStore.GetAsync(idempotencyKey);
 
-        // Same key + same payload = return original result
         if (existingRecord is not null &&
             existingRecord.Payload == payload)
         {
             return existingRecord.Contribution;
         }
 
-        // Same key + different payload = reject
         if (existingRecord is not null &&
             existingRecord.Payload != payload)
         {
-            throw new InvalidOperationException(
+            throw new IdempotencyConflictException(
                 "Idempotency key has already been used with a different request.");
         }
 
-        var stokvel = await _repository.GetStokvelByIdAsync(stokvelId);
+        var stokvel =
+            await _repository.GetStokvelByIdAsync(stokvelId);
 
         if (stokvel is null)
         {
-            throw new InvalidOperationException("Stokvel not found.");
+            throw new NotFoundException(
+                "Stokvel not found.");
         }
 
-        var user = await _repository.GetUserByIdAsync(userId);
+        var user =
+            await _repository.GetUserByIdAsync(userId);
 
         if (user is null)
         {
-            throw new InvalidOperationException("User not found.");
+            throw new NotFoundException(
+                "User not found.");
+        }
+
+        var contributionCycle =
+            await _repository.GetContributionCycleByIdAsync(cycle);
+
+        if (contributionCycle is null)
+        {
+            throw new NotFoundException(
+                $"No contribution cycle with ID {cycle} was found.");
+        }
+
+        if (contributionCycle.StokvelId != stokvelId)
+        {
+            throw new BusinessRuleException(
+                "The contribution cycle does not belong to this stokvel.");
         }
 
         if (!stokvel.Members.Any(u => u.Id == userId))
         {
-            throw new InvalidOperationException(
+            throw new BusinessRuleException(
                 "User is not a member of this stokvel.");
         }
 
-        var existingContribution = await _repository.GetContributionAsync(
-            stokvelId,
-            userId,
-            cycle);
+        var existingContribution =
+            await _repository.GetContributionAsync(
+                stokvelId,
+                userId,
+                cycle);
 
         if (existingContribution is not null)
         {
-            throw new InvalidOperationException(
+            throw new BusinessRuleException(
                 "A contribution has already been recorded for this member and cycle.");
         }
 
@@ -123,21 +144,19 @@ public class RondiTrackService : IRondiTrackService
             userId,
             stokvelId,
             cycle,
-            stokvel.ContributionAmount
-        );
+            stokvel.ContributionAmount);
 
         await _repository.AddContributionAsync(contribution);
 
         var record = new IdempotencyRecord(
             payload,
-            contribution
-        );
+            contribution);
 
         await _idempotencyStore.SaveAsync(
             idempotencyKey,
-            record
-        );
+            record);
 
         return contribution;
     }
 }
+

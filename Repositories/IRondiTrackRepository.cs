@@ -11,6 +11,11 @@ public interface IRondiTrackRepository
     Task AddUserAsync(User user);
     Task<bool> UpdateUserAsync(User user);
     Task<bool> DeleteUserAsync(int id);
+    Task<IReadOnlyCollection<ContributionCycle>> GetContributionCyclesAsync();
+    Task<ContributionCycle?> GetContributionCycleByIdAsync(int id);
+    Task AddContributionCycleAsync(ContributionCycle cycle);
+    Task UpdateContributionCycleAsync(ContributionCycle cycle);
+    Task<bool> DeleteContributionCycleAsync(int id);
 
     //CRUD Operations for Stokvel
     Task<IReadOnlyCollection<Stokvel>> GetStokvelsAsync();
