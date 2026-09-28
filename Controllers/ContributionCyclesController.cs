@@ -20,6 +20,9 @@ public class ContributionCyclesController : ControllerBase
 
     // Get all contribution cycles
     [HttpGet]
+    [EndpointSummary("Get all contribution cycles")]
+    [EndpointDescription("Returns all contribution cycles currently stored in RondiTrack.")]
+    [ProducesResponseType(typeof(IReadOnlyCollection<ContributionCycleResponse>), StatusCodes.Status200OK)]
     public async Task<ActionResult<IReadOnlyCollection<ContributionCycleResponse>>>
         GetContributionCycles()
     {
@@ -39,8 +42,12 @@ public class ContributionCyclesController : ControllerBase
 
     // Get contribution cycle by ID
     [HttpGet("{id:int}")]
+    [EndpointSummary("Get a contribution cycle by ID")]
+    [EndpointDescription("Returns the contribution cycle with the specified ID.")]
+    [ProducesResponseType(typeof(ContributionCycleResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ContributionCycleResponse>>
-        GetContributionCycle(int id)
+         GetContributionCycle(int id)
     {
         var cycle =
             await _repository.GetContributionCycleByIdAsync(id);
@@ -57,6 +64,12 @@ public class ContributionCyclesController : ControllerBase
 
     // Create contribution cycle
     [HttpPost]
+    [EndpointSummary("Create a contribution cycle")]
+    [EndpointDescription("Creates a contribution cycle for an existing stokvel.")]
+    [ProducesResponseType(typeof(ContributionCycleResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status422UnprocessableEntity)]
     public async Task<ActionResult<ContributionCycleResponse>>
         CreateContributionCycle(
             CreateContributionCycleRequest request)
@@ -95,10 +108,15 @@ public class ContributionCyclesController : ControllerBase
 
     // Update contribution cycle
     [HttpPut("{id:int}")]
+    [EndpointSummary("Update a contribution cycle")]
+    [EndpointDescription("Updates the number and target amount of an existing contribution cycle.")]
+    [ProducesResponseType(typeof(ContributionCycleResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ContributionCycleResponse>>
-        UpdateContributionCycle(
-            int id,
-            UpdateContributionCycleRequest request)
+         UpdateContributionCycle(
+             int id,
+             UpdateContributionCycleRequest request)
     {
         var cycle =
             await _repository.GetContributionCycleByIdAsync(id);
@@ -121,8 +139,12 @@ public class ContributionCyclesController : ControllerBase
 
     // Delete contribution cycle
     [HttpDelete("{id:int}")]
+    [EndpointSummary("Delete a contribution cycle")]
+    [EndpointDescription("Deletes the contribution cycle with the specified ID.")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<IActionResult>
-        DeleteContributionCycle(int id)
+          DeleteContributionCycle(int id)
     {
         var deleted =
             await _repository.DeleteContributionCycleAsync(id);

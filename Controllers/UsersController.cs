@@ -20,6 +20,9 @@ public class UsersController : ControllerBase
 
     // Get all users
     [HttpGet]
+    [EndpointSummary("Get all users")]
+    [EndpointDescription("Returns all users currently stored in RondiTrack.")]
+    [ProducesResponseType(typeof(IReadOnlyCollection<UserResponse>), StatusCodes.Status200OK)]
     public async Task<ActionResult<IReadOnlyCollection<UserResponse>>> GetUsers()
     {
         var users = await _repository.GetUsersAsync();
@@ -36,6 +39,10 @@ public class UsersController : ControllerBase
 
     // Get a user by ID
     [HttpGet("{id:int}")]
+    [EndpointSummary("Get a user by ID")]
+    [EndpointDescription("Returns the user with the specified ID.")]
+    [ProducesResponseType(typeof(UserResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<ActionResult<UserResponse>> GetUser(int id)
     {
         var user = await _repository.GetUserByIdAsync(id);
@@ -51,6 +58,11 @@ public class UsersController : ControllerBase
 
     // Create a new user
     [HttpPost]
+    [EndpointSummary("Create a user")]
+    [EndpointDescription("Creates a new user. The request must be valid and the user ID must not already exist.")]
+    [ProducesResponseType(typeof(UserResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status422UnprocessableEntity)]
     public async Task<ActionResult<UserResponse>> CreateUser(
         CreateUserRequest request)
     {
@@ -58,11 +70,8 @@ public class UsersController : ControllerBase
 
         if (existingUser is not null)
         {
-            if (existingUser is not null)
-            {
-                throw new BusinessRuleException(
-                    $"A user with ID {request.Id} already exists.");
-            }
+            throw new BusinessRuleException(
+                $"A user with ID {request.Id} already exists.");
         }
 
 
@@ -80,6 +89,11 @@ public class UsersController : ControllerBase
 
     // Update an existing user
     [HttpPut("{id:int}")]
+    [EndpointSummary("Update a user")]
+    [EndpointDescription("Updates an existing user's details.")]
+    [ProducesResponseType(typeof(UserResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<ActionResult<UserResponse>> UpdateUser(
         int id,
         UpdateUserRequest request)
@@ -101,6 +115,10 @@ public class UsersController : ControllerBase
 
     // Delete a user by ID
     [HttpDelete("{id:int}")]
+    [EndpointSummary("Delete a user")]
+    [EndpointDescription("Deletes the user with the specified ID.")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> DeleteUser(int id)
     {
         var deleted = await _repository.DeleteUserAsync(id);
