@@ -332,3 +332,180 @@ application/problem+json
 ```
 
 All three negative-path tests pass successfully.
+
+
+
+
+================================================================================================================================
+
+
+
+
+---
+
+## Assignment 4.4 — Documentation & Testing
+
+Assignment 4.4 strengthens the RondiTrack API contract and automated test coverage. No new endpoints or business rules were introduced. The focus was on documenting the existing API accurately and proving its behaviour through unit and integration tests.
+
+### OpenAPI / Scalar Documentation
+
+All existing API endpoints were reviewed and documented using OpenAPI metadata.
+
+The documentation includes:
+
+- Endpoint summaries and descriptions.
+- Successful response types.
+- Validation failure responses.
+- Not-found responses.
+- Business-rule violation responses.
+- Idempotency conflict responses where applicable.
+- Request and response schemas visible through Scalar.
+
+Scalar was manually reviewed to confirm that the documented contract matches the implemented API behaviour.
+
+### Automated Testing
+
+The project contains both unit tests and integration tests.
+
+**Unit tests** test domain and service behaviour directly without sending HTTP requests.
+
+The unit tests cover:
+
+- Rejecting duplicate stokvel membership.
+- Rejecting removal of a user who is not a member.
+- Rejecting duplicate contributions.
+- Returning the original contribution when the same idempotency key and payload are repeated.
+- Rejecting reuse of an idempotency key with a different payload.
+
+**Integration tests** use `WebApplicationFactory<Program>` to exercise the real ASP.NET Core request pipeline.
+
+The integration tests cover:
+
+- Successful user creation and retrieval.
+- Successful stokvel creation and retrieval.
+- Successful contribution-cycle creation and retrieval.
+- Request validation failures.
+- Missing resources.
+- Duplicate users.
+- Duplicate stokvels.
+- Duplicate contribution cycles.
+- Duplicate stokvel membership.
+- Removing a non-member.
+- Contributions from non-members.
+- Contribution cycles belonging to another stokvel.
+- Duplicate contributions.
+- Idempotent request replay.
+- Idempotency-key conflicts.
+
+### Test Result
+
+The complete automated test suite was run using:
+
+```bash
+dotnet test RondiTrack.Tests/RondiTrack.Tests.csproj
+```
+
+Final result:
+
+```text
+Total tests: 23
+Passed: 23
+Failed: 0
+Skipped: 0
+```
+
+### Edge Cases
+
+Three additional edge cases were identified and tested.
+
+#### 1. Empty Member Collection
+
+A newly created stokvel has no members.
+
+The test creates a new stokvel and requests its members. It asserts that the API returns `200 OK` with an empty collection (`[]`) rather than an error.
+
+#### 2. Zero Contribution Amount
+
+A contribution amount of exactly `0` tests the lower boundary of the rule requiring the amount to be greater than zero.
+
+The edge-case test initially exposed a missing `CreateStokvelRequest` validation rule because the request reached the domain constructor and produced a `500 Internal Server Error`.
+
+A FluentValidation rule requiring `ContributionAmount > 0` was added. The test now confirms that the invalid request is rejected with `400 Bad Request`.
+
+#### 3. Contribution Cycle for a Missing Stokvel
+
+The request itself can have a valid structure while referencing a stokvel that does not exist.
+
+The test confirms that attempting to create a contribution cycle for a missing stokvel returns `404 Not Found`.
+
+### Idempotency Verification
+
+Idempotency behaviour is verified automatically.
+
+The tests confirm that:
+
+- Sending the same contribution request twice with the same `Idempotency-Key` returns the same successful result.
+- Reusing an idempotency key with a different payload returns `409 Conflict`.
+- Attempting the same contribution again with a different idempotency key is treated as a duplicate contribution and returns `422 Unprocessable Entity`.
+
+### Deliberate Test Failure
+
+To confirm that the automated tests genuinely detect broken business behaviour, the duplicate-member rule in `Stokvel.AddMember()` was temporarily disabled.
+
+The targeted test:
+
+```text
+AddMember_WhenUserAlreadyMember_ThrowsBusinessRuleException
+```
+
+changed from passing to failing because no `BusinessRuleException` was thrown.
+
+The business rule was then restored and the complete test suite was rerun successfully with all 23 tests passing.
+
+This demonstrated the sequence:
+
+```text
+Rule enabled  -> test passes
+Rule removed  -> test fails
+Rule restored -> test passes
+```
+
+The deliberately broken implementation was not committed.
+
+### Definition of Done
+
+### Definition of Done
+
+| Endpoint | Documented | Validated | Unit Tested | Integration Tested | Status Codes Reviewed |
+|---|---|---|---|---|---|
+| GET `/api/users` | Yes | Yes | No | No | Yes |
+| GET `/api/users/{id}` | Yes | Yes | No | Yes | Yes |
+| POST `/api/users` | Yes | Yes | No | Yes | Yes |
+| PUT `/api/users/{id}` | Yes | Yes | No | No | Yes |
+| DELETE `/api/users/{id}` | Yes | Yes | No | No | Yes |
+| GET `/api/stokvels` | Yes | Yes | No | No | Yes |
+| GET `/api/stokvels/{id}` | Yes | Yes | No | Yes | Yes |
+| POST `/api/stokvels` | Yes | Yes | No | Yes | Yes |
+| PUT `/api/stokvels/{id}` | Yes | Yes | No | No | Yes |
+| DELETE `/api/stokvels/{id}` | Yes | Yes | No | No | Yes |
+| GET `/api/stokvels/{stokvelId}/members` | Yes | Yes | No | Yes | Yes |
+| POST `/api/stokvels/{stokvelId}/members/{userId}` | Yes | Yes | Yes | Yes | Yes |
+| DELETE `/api/stokvels/{stokvelId}/members/{userId}` | Yes | Yes | Yes | Yes | Yes |
+| POST `/api/stokvels/{stokvelId}/members/{userId}/contributions` | Yes | Yes | Yes | Yes | Yes |
+| GET `/api/contribution-cycles` | Yes | Yes | No | No | Yes |
+| GET `/api/contribution-cycles/{id}` | Yes | Yes | No | Yes | Yes |
+| POST `/api/contribution-cycles` | Yes | Yes | No | Yes | Yes |
+| PUT `/api/contribution-cycles/{id}` | Yes | Yes | No | No | Yes |
+| DELETE `/api/contribution-cycles/{id}` | Yes | Yes | No | No | Yes |
+
+The Definition of Done intentionally records endpoints without direct unit or integration tests as "No" rather than overstating the current automated coverage. Business rules and critical API paths have dedicated automated tests, while some simple CRUD operations are currently verified through the documented contract and manual Scalar review.
+
+### Known Gaps and Constraints
+
+RondiTrack continues to use in-memory storage as required by the assignment. Data is therefore reset when the application restarts.
+
+Authentication and authorization are not implemented because they are outside the scope of Assignment 4.4.
+
+No Entity Framework Core or PostgreSQL persistence was introduced.
+
+The API documentation was manually reviewed in Scalar, while the automated test suite remains the primary proof of application behaviour.
