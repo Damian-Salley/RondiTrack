@@ -25,4 +25,7 @@ public interface IRondiTrackRepository
     Task<bool> DeleteStokvelAsync(int id);
     Task AddContributionAsync(Contribution contribution);
     Task<Contribution?> GetContributionAsync(int stokvelId, int userId, int cycle);
+    Task AddPayoutAsync(Payout payout);
+    Task<IReadOnlyCollection<Payout>> GetPayoutsAsync();
+    Task ProcessPayoutAsync(Payout payout, ContributionCycle cycle);
 }

@@ -6,6 +6,7 @@ using RondiTrack.Mappers;
 using RondiTrack.Repositories;
 using RondiTrack.Services;
 using RondiTrack.Exceptions;
+using RondiTrack.Models;
 
 namespace RondiTrack.Controllers;
 
@@ -225,5 +226,24 @@ public class StokvelsController : ControllerBase
             idempotencyKey);
 
         return Ok(ContributionMapper.ToResponse(contribution));
+
     }
+    // Process a payout
+    [HttpPost("{stokvelId:int}/cycles/{contributionCycleId:int}/payout")]
+    [EndpointSummary("Process a payout")]
+    [EndpointDescription("Processes the payout for a contribution cycle and marks the cycle as paid.")]
+    [ProducesResponseType(typeof(Payout), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status422UnprocessableEntity)]
+    public async Task<ActionResult<Payout>> ProcessPayout(
+        int stokvelId,
+        int contributionCycleId)
+    {
+        var payout = await _service.ProcessPayoutAsync(
+            stokvelId,
+            contributionCycleId);
+
+        return Ok(payout);
+    }
+
 }

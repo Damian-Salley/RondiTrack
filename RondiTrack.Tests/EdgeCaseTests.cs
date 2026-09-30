@@ -11,7 +11,7 @@ public class EdgeCaseTests
     public async Task NewStokvel_WithNoMembers_ReturnsEmptyMemberCollection()
     {
         await using var factory =
-            new WebApplicationFactory<Program>();
+           new CustomWebApplicationFactory();
 
         var client = factory.CreateClient();
 
@@ -49,7 +49,7 @@ public class EdgeCaseTests
     public async Task CreateStokvel_WithZeroContributionAmount_Returns400()
     {
         await using var factory =
-            new WebApplicationFactory<Program>();
+          new CustomWebApplicationFactory();
 
         var client = factory.CreateClient();
 
@@ -78,7 +78,7 @@ public class EdgeCaseTests
     public async Task CreateContributionCycle_ForMissingStokvel_Returns404()
     {
         await using var factory =
-            new WebApplicationFactory<Program>();
+           new CustomWebApplicationFactory();
 
         var client = factory.CreateClient();
 

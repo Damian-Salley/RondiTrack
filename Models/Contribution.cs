@@ -5,7 +5,7 @@ public class Contribution
     public int UserId { get; }
     public int StokvelId { get; }
     public int Cycle { get; }
-    public decimal ContributionAmount { get; }
+    public decimal ContributionAmount { get; private set; }
 
     public Contribution(int userId, int stokvelId, int cycle, decimal contributionAmount)
     {

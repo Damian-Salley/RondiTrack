@@ -12,4 +12,8 @@ public interface IRondiTrackService
         int userId,
         int cycle,
         string idempotencyKey);
+
+    Task<Payout> ProcessPayoutAsync(
+        int stokvelId,
+        int contributionCycleId);
 }

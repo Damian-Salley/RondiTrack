@@ -509,3 +509,129 @@ Authentication and authorization are not implemented because they are outside th
 No Entity Framework Core or PostgreSQL persistence was introduced.
 
 The API documentation was manually reviewed in Scalar, while the automated test suite remains the primary proof of application behaviour.
+
+
+
+
+==================================================================================================================================
+
+
+
+
+Yes. Since you want everything in one block after 4.4, add this:
+
+## 5. Persistence and Database
+
+### 5.1 PostgreSQL Setup
+
+RondiTrack uses a local PostgreSQL database named `RondiTrack`.
+
+PostgreSQL was installed and run locally. The database was created specifically for RondiTrack rather than using a shared/default database.
+
+The application connects to PostgreSQL using:
+
+- Host: `localhost`
+- Port: `5432`
+- Database: `RondiTrack`
+- Username: `postgres`
+
+The connection was tested independently through the PostgreSQL administration tools before being used by the API.
+
+### 5.2 Secret Management
+
+The PostgreSQL connection string is stored using .NET User Secrets rather than being committed to the repository.
+
+User Secrets was initialised with:
+
+'''bash
+dotnet user-secrets init
+
+The connection string was then stored using:
+
+dotnet user-secrets set "ConnectionStrings:RondiTrack" "Host=localhost;Port=5432;Database=RondiTrack;Username=postgres;Password=YOUR_PASSWORD;Pooling=true"
+
+The password is therefore not stored in appsettings.json or committed to Git.
+
+5.3 Entity Framework Core
+
+RondiTrack uses Entity Framework Core 10 with the PostgreSQL Npgsql provider.
+
+All six persisted entities are represented in RondiTrackDbContext:
+
+User
+Stokvel
+StokvelMember
+ContributionCycle
+Contribution
+Payout
+
+The EfRondiTrackRepository was introduced to persist application data through EF Core while keeping the existing repository interface unchanged.
+
+The EF Core repository is registered as scoped because DbContext is scoped and is intended to be used within a request. A singleton repository holding a DbContext could cause the same context to be shared across requests and lead to concurrency and tracking problems.
+
+5.4 EF Core Mapping Issue
+
+The Contribution entity initially caused an EF Core mapping problem because its constructor parameter contributionAmount could not be bound to a mapped property.
+
+The property was changed to:
+
+public decimal ContributionAmount { get; private set; }
+
+This allowed EF Core to map the property correctly while keeping the setter private to protect the domain model.
+
+5.5 Migrations
+
+The initial database schema was created using an EF Core migration:
+
+dotnet ef migrations add InitialCreate
+dotnet ef database update
+
+The migration creates the required tables, primary keys, foreign keys and indexes in PostgreSQL.
+
+5.6 Payout Processing
+
+A minimal payout rule was introduced because Payout is new functionality for this assignment.
+
+Members are ordered by UserId. The contribution cycle number determines the recipient's position in the rotation. The rotation wraps around when the number of members is exceeded.
+
+The selected recipient must have made a contribution for the relevant cycle.
+
+The payout amount is based on the stokvel's contribution amount multiplied by the number of members.
+
+The payout operation creates a Payout record and marks the related ContributionCycle as Paid.
+
+5.7 Transactions
+
+Payout processing uses an explicit database transaction.
+
+The transaction protects the two related database changes:
+
+Marking the contribution cycle as Paid.
+Creating the Payout record.
+
+If either operation fails, the transaction is rolled back so that no partial state remains in the database.
+
+A rollback integration test deliberately causes the payout operation to fail and then re-queries PostgreSQL to confirm that the cycle remains in its original state and that the failed payout was not persisted.
+
+5.8 Testing
+
+The existing integration and business-rule test suite was run against the real local PostgreSQL database.
+
+The test suite was run using:
+
+dotnet test
+
+The tests cover the existing API behaviour as well as the new payout functionality, including successful payout processing and transaction rollback.
+
+5.9 Definition of Done
+Requirement	Completed
+Existing tests still pass	Yes
+PostgreSQL persistence implemented	Yes
+EF Core DbContext configured	Yes
+Initial migration created and applied	Yes
+Repository swapped to EF Core	Yes
+Payout processing implemented	Yes
+Explicit transaction implemented	Yes
+Transaction rollback tested	Yes
+Persisted via EF Core	Yes
+Explicit transaction tested	Yes

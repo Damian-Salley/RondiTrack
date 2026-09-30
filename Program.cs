@@ -7,17 +7,35 @@ using FluentValidation.AspNetCore;
 using RondiTrack.Validators;
 using RondiTrack.ExceptionHandling;
 using Microsoft.AspNetCore.Mvc;
+using RondiTrack.Data;
+using Microsoft.EntityFrameworkCore;
 
 
 var builder = WebApplication.CreateBuilder(args);
+
+var connectionString =
+    builder.Configuration.GetConnectionString("RondiTrack")
+    ?? throw new InvalidOperationException(
+        "Connection string 'RondiTrack' was not found.");
+
+builder.Services.AddDbContext<RondiTrackDbContext>(options =>
+    options.UseNpgsql(
+        connectionString,
+        npgsqlOptions =>
+        {
+            npgsqlOptions.EnableRetryOnFailure(
+                maxRetryCount: 3,
+                maxRetryDelay: TimeSpan.FromSeconds(5),
+                errorCodesToAdd: null);
+        }));
 
 builder.Services.AddOpenApi();
 builder.Services.AddControllers();
 builder.Services.AddFluentValidationAutoValidation();
 builder.Services.AddValidatorsFromAssemblyContaining<CreateUserRequestValidator>();
-builder.Services.AddSingleton<IRondiTrackRepository, InMemoryRondiTrackRepository>();
+builder.Services.AddScoped<IRondiTrackRepository, EfRondiTrackRepository>();
 builder.Services.AddSingleton<IIdempotencyStore, InMemoryIdempotencyStore>();
-builder.Services.AddSingleton<IRondiTrackService, RondiTrackService>();
+builder.Services.AddScoped<IRondiTrackService, RondiTrackService>();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddProblemDetails();
 

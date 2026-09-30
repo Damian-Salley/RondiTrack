@@ -158,5 +158,89 @@ public class RondiTrackService : IRondiTrackService
 
         return contribution;
     }
+
+    public async Task<Payout> ProcessPayoutAsync(
+    int stokvelId,
+    int contributionCycleId)
+    {
+        var stokvel =
+            await _repository.GetStokvelByIdAsync(stokvelId);
+
+        if (stokvel is null)
+        {
+            throw new NotFoundException("Stokvel not found.");
+        }
+
+        var cycle =
+            await _repository.GetContributionCycleByIdAsync(contributionCycleId);
+
+        if (cycle is null)
+        {
+            throw new NotFoundException("Contribution cycle not found.");
+        }
+
+        if (cycle.StokvelId != stokvelId)
+        {
+            throw new BusinessRuleException(
+                "The contribution cycle does not belong to this stokvel.");
+        }
+
+        if (cycle.Status == "Paid")
+        {
+            throw new BusinessRuleException(
+                "This contribution cycle has already been paid out.");
+        }
+
+        var members = stokvel.Members
+            .OrderBy(member => member.Id)
+            .ToList();
+
+        if (members.Count == 0)
+        {
+            throw new BusinessRuleException(
+                "This stokvel has no members.");
+        }
+
+        var rotationIndex =
+            (cycle.Number - 1) % members.Count;
+
+        var recipient =
+            members[rotationIndex];
+
+        var contribution =
+            await _repository.GetContributionAsync(
+                stokvelId,
+                recipient.Id,
+                contributionCycleId);
+
+        if (contribution is null)
+        {
+            throw new BusinessRuleException(
+                "The next member in the rotation has not contributed to this cycle.");
+        }
+
+        var payouts =
+            await _repository.GetPayoutsAsync();
+
+        var payoutId =
+            payouts.Count == 0
+                ? 1
+                : payouts.Max(payout => payout.Id) + 1;
+
+        var payout = new Payout(
+            payoutId,
+            stokvelId,
+            recipient.Id,
+            contributionCycleId,
+            stokvel.ContributionAmount * members.Count,
+            DateTime.UtcNow,
+            rotationIndex + 1);
+
+        await _repository.ProcessPayoutAsync(
+            payout,
+            cycle);
+
+        return payout;
+    }
 }
 

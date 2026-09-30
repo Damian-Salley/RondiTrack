@@ -8,6 +8,7 @@ public class InMemoryRondiTrackRepository : IRondiTrackRepository
 {
     private readonly List<Contribution> _contributions = new();
     private readonly List<ContributionCycle> _contributionCycles = new();
+    private readonly List<Payout> _payouts = new();
 
     //Add a member to a stokvel
     public Task AddContributionAsync(Contribution contribution)
@@ -206,4 +207,25 @@ public class InMemoryRondiTrackRepository : IRondiTrackRepository
 
         return Task.FromResult(true);
     }
+    public Task AddPayoutAsync(Payout payout)
+    {
+        _payouts.Add(payout);
+        return Task.CompletedTask;
+    }
+
+    public Task ProcessPayoutAsync(
+    Payout payout,
+    ContributionCycle cycle)
+{
+    cycle.MarkAsPaid();
+    _payouts.Add(payout);
+
+    return Task.CompletedTask;
+}
+
+    public Task<IReadOnlyCollection<Payout>> GetPayoutsAsync()
+    {
+        return Task.FromResult<IReadOnlyCollection<Payout>>(_payouts);
+    }
+
 }
