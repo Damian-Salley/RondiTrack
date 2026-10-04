@@ -518,7 +518,7 @@ The API documentation was manually reviewed in Scalar, while the automated test 
 
 
 
-Yes. Since you want everything in one block after 4.4, add this:
+
 
 ## 5. Persistence and Database
 
@@ -635,3 +635,220 @@ Explicit transaction implemented	Yes
 Transaction rollback tested	Yes
 Persisted via EF Core	Yes
 Explicit transaction tested	Yes
+
+
+
+
+=================================================================================================================================
+
+
+
+Assigment 5.2
+
+## 6. Relationships and Query Behaviour
+
+### 6.1 StokvelMember Relationship
+
+StokvelMember is modelled as an explicit join entity between Stokvel and User.
+
+It uses the natural composite primary key:
+
+(UserId, StokvelId)
+
+A surrogate Id was not added because the combination of UserId and StokvelId already uniquely identifies a membership.
+
+StokvelMember also stores relationship-specific data:
+
+- Role
+- JoinedAtUtc
+
+Contribution references a membership using the existing StokvelId and UserId values. A composite foreign key was configured from Contribution to StokvelMember.
+
+Payout was not changed because the membership key did not require a change to the existing payout behaviour.
+
+### 6.2 StokvelMember Access
+
+The project does not use a generic IRepository<T> with a single Id lookup.
+
+StokvelMember is mainly accessed through the Stokvel aggregate using the Members navigation collection.
+
+A dedicated member lookup is also available where the composite StokvelId and UserId values are required.
+
+This avoids introducing a surrogate Id only to support repository access.
+
+### 6.3 Relationship Migrations
+
+Two migrations were created for the relationship changes:
+
+- AddRelationships
+- AddContributionMemberRelationship
+
+The migrations were inspected before being applied.
+
+AddRelationships added Role and JoinedAtUtc to StokvelMembers.
+
+The existing StokvelMember composite key was already present from the previous database schema, so the migration did not need to replace the primary key.
+
+Existing rows receive migration default values for the new fields. This preserves the existing data, although the migration cannot recreate the original historical JoinedAtUtc value for memberships that already existed.
+
+AddContributionMemberRelationship added the composite foreign key from Contribution to StokvelMember.
+
+The migrations did not require dropping and recreating the StokvelMembers table.
+
+Both migrations were successfully applied to PostgreSQL.
+
+### 6.4 Additional Relationship
+
+A one-to-many relationship was modelled between Stokvel and ContributionCycle.
+
+Stokvel contains a ContributionCycles navigation collection and ContributionCycle contains a Stokvel navigation property.
+
+ContributionCycle.StokvelId is used as the foreign key.
+
+An alternative relationship that could also have been modelled was ContributionCycle to Contribution. Stokvel to ContributionCycle was chosen because it directly represents the cycles belonging to a stokvel and was sufficient for the assignment.
+
+### 6.5 N+1 Query Demonstration
+
+The following endpoint was used to demonstrate the N+1 query problem:
+
+GET /api/stokvels/{stokvelId}/cycles/{cycleId}/contributions
+
+The initial implementation first loaded all contributions without eager loading.
+
+It then performed a separate StokvelMember and User query for every contribution.
+
+The test contained 3 contributions.
+
+The measured result was:
+
+- 1 query to load the contributions
+- 3 additional queries to load the related member and user data
+- 4 SQL queries in total
+
+This demonstrated the N+1 behaviour where the number of queries grows as:
+
+1 + N
+
+For the measured 3 contributions this resulted in 4 queries.
+
+### 6.6 N+1 Fix - Eager Loading
+
+The first solution used eager loading:
+
+Include(contribution => contribution.Member)
+ThenInclude(member => member.User)
+
+The same endpoint and the same 3 contributions were tested again.
+
+The measured result was:
+
+- 1 SQL query in total
+
+EF Core joined Contributions, StokvelMembers and Users in a single query.
+
+This removed the N+1 behaviour.
+
+However, the query also retrieved member and user fields that were not required by the response, including Role, JoinedAtUtc, Email and PhoneNumber.
+
+### 6.7 N+1 Fix - Projection
+
+The second solution used Select to project the database query directly into ContributionResponse.
+
+The same endpoint and the same 3 contributions were tested again.
+
+The measured result was:
+
+- 1 SQL query in total
+
+The projection selected only:
+
+- UserId
+- StokvelId
+- Cycle
+- ContributionAmount
+- FirstName and LastName for MemberName
+
+Projection was chosen as the implementation to ship because it removes the N+1 problem while also avoiding retrieval of unnecessary entity columns.
+
+The final comparison was:
+
+| Approach | Contributions | SQL Queries |
+|---|---:|---:|
+| Naive N+1 | 3 | 4 |
+| Eager loading | 3 | 1 |
+| Projection | 3 | 1 |
+
+### 6.8 Loading Strategy
+
+Lazy loading is not used.
+
+Relationships are loaded deliberately depending on the read path.
+
+The contribution endpoint uses projection because only a specific response shape is required.
+
+GetStokvelByIdAsync uses eager loading for Members and their related Users where the full relationship is required.
+
+GetStokvelsAsync eagerly loads Members so that MemberCount can be returned correctly.
+
+This makes the required database access explicit and avoids hidden queries caused by lazy loading.
+
+### 6.9 AsNoTracking
+
+AsNoTracking is used for read-only queries where the returned entities are not going to be modified.
+
+It is used for read-only operations including:
+
+- Getting all users
+- Getting all contribution cycles
+- Getting all stokvels
+- Getting contribution data for the N+1 comparison
+- Getting projected contribution responses
+- Getting all payouts
+
+Methods that are shared with write operations remain tracked.
+
+For example, GetStokvelByIdAsync remains tracked because the returned Stokvel can be used when adding or removing members.
+
+GetContributionCycleByIdAsync also remains tracked because the contribution cycle can be modified during payout processing.
+
+This prevents AsNoTracking from interfering with write operations while avoiding unnecessary tracking on read-only paths.
+
+### 6.10 Testing
+
+The existing test suite was run again after the relationship and query behaviour changes using:
+
+dotnet test
+
+The test suite succeeded after the Assignment 5.2 changes.
+
+The relationship changes therefore did not break the existing tested behaviour.
+
+The previous tests did not depend on a surrogate StokvelMember.Id because StokvelMember already used its composite membership identity rather than requiring a single Id.
+
+### 6.11 Extended Definition of Done
+
+| Requirement | Completed | Real Navigation Modelled | N+1 Measured / Fixed |
+|---|---|---|---|
+| User persistence | Yes | N/A | N/A |
+| Stokvel persistence | Yes | Yes | N/A |
+| StokvelMember relationship | Yes | Yes | N/A |
+| ContributionCycle persistence | Yes | Yes | N/A |
+| Contribution persistence | Yes | Yes | Yes |
+| Payout persistence | Yes | N/A | N/A |
+| PostgreSQL persistence | Yes | N/A | N/A |
+| EF Core mappings | Yes | Yes | N/A |
+| Relationship migrations | Yes | Yes | N/A |
+| N+1 behaviour demonstrated | Yes | Yes | Yes |
+| Eager-loading fix implemented | Yes | Yes | Yes |
+| Projection fix implemented | Yes | Yes | Yes |
+| AsNoTracking used on read paths | Yes | N/A | N/A |
+| Lazy loading avoided | Yes | Yes | N/A |
+| Existing tests still pass | Yes | N/A | N/A |
+
+### 6.12 Remaining Gaps
+
+Not every possible relationship in the domain has been converted into a navigation property.
+
+Only the relationships required for the current application behaviour and Assignment 5.2 were added.
+
+Additional relationships can be introduced later when required by future application behaviour rather than adding unnecessary relationships in advance.

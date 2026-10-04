@@ -1,10 +1,10 @@
 using RondiTrack.Models;
 using RondiTrack.DTOs.Users;
+using RondiTrack.DTOs.Contributions;
 
 namespace RondiTrack.Repositories;
 
 public class InMemoryRondiTrackRepository : IRondiTrackRepository
-
 {
     private readonly List<Contribution> _contributions = new();
     private readonly List<ContributionCycle> _contributionCycles = new();
@@ -98,6 +98,7 @@ public class InMemoryRondiTrackRepository : IRondiTrackRepository
         };
     }
 
+
     //CRUD Operations for Stokvel
     //Get stokvel by ID
     public Task<Stokvel?> GetStokvelByIdAsync(int id)
@@ -115,6 +116,7 @@ public class InMemoryRondiTrackRepository : IRondiTrackRepository
         return Task.FromResult(stokvels);
     }
 
+    //Add a new stokvel
     public Task AddStokvelAsync(Stokvel stokvel)
     {
         _stokvels.Add(stokvel);
@@ -152,19 +154,84 @@ public class InMemoryRondiTrackRepository : IRondiTrackRepository
         return Task.FromResult(true);
     }
 
+
+    //CRUD Operations for Contribution
     //Get a contribution by stokvel ID, user ID, and cycle
     public Task<Contribution?> GetContributionAsync(
-    int stokvelId,
-    int userId,
-    int cycle)
+        int stokvelId,
+        int userId,
+        int cycle)
     {
-        var contribution = _contributions.FirstOrDefault(c =>
-            c.StokvelId == stokvelId &&
-            c.UserId == userId &&
-            c.Cycle == cycle);
+        var contribution = _contributions.FirstOrDefault(contribution =>
+            contribution.StokvelId == stokvelId &&
+            contribution.UserId == userId &&
+            contribution.Cycle == cycle);
 
         return Task.FromResult(contribution);
     }
+
+    //Get all contributions for a stokvel and contribution cycle
+    public Task<IReadOnlyCollection<Contribution>> GetContributionsByCycleAsync(
+        int stokvelId,
+        int cycleId)
+    {
+        IReadOnlyCollection<Contribution> contributions =
+            _contributions
+                .Where(contribution =>
+                    contribution.StokvelId == stokvelId &&
+                    contribution.Cycle == cycleId)
+                .ToList();
+
+        return Task.FromResult(contributions);
+    }
+
+    // Gets contribution response data using projection.
+    public Task<IReadOnlyCollection<ContributionResponse>>
+        GetContributionResponsesByCycleAsync(
+            int stokvelId,
+            int cycleId)
+    {
+        var responses = _contributions
+            .Where(contribution =>
+                contribution.StokvelId == stokvelId &&
+                contribution.Cycle == cycleId)
+            .Select(contribution =>
+            {
+                var user = _users
+                    .First(user => user.Id == contribution.UserId);
+
+                return new ContributionResponse
+                {
+                    UserId = contribution.UserId,
+                    StokvelId = contribution.StokvelId,
+                    Cycle = contribution.Cycle,
+                    ContributionAmount = contribution.ContributionAmount,
+                    MemberName = $"{user.FirstName} {user.LastName}"
+                };
+            })
+            .ToList();
+
+        return Task.FromResult<IReadOnlyCollection<ContributionResponse>>(
+            responses);
+    }
+
+    //Gets the member and user for a specific contribution
+    public Task<StokvelMember?> GetMemberForContributionAsync(
+        int stokvelId,
+        int userId)
+    {
+        var stokvel = _stokvels
+            .FirstOrDefault(stokvel => stokvel.Id == stokvelId);
+
+        var member = stokvel?.Members
+            .FirstOrDefault(member => member.UserId == userId);
+
+        return Task.FromResult(member);
+    }
+
+
+    //CRUD Operations for Contribution Cycle
+    //Get all contribution cycles
     public Task<IReadOnlyCollection<ContributionCycle>> GetContributionCyclesAsync()
     {
         IReadOnlyCollection<ContributionCycle> cycles =
@@ -173,14 +240,16 @@ public class InMemoryRondiTrackRepository : IRondiTrackRepository
         return Task.FromResult(cycles);
     }
 
+    //Get contribution cycle by ID
     public Task<ContributionCycle?> GetContributionCycleByIdAsync(int id)
     {
         var cycle = _contributionCycles
-            .FirstOrDefault(c => c.Id == id);
+            .FirstOrDefault(cycle => cycle.Id == id);
 
         return Task.FromResult(cycle);
     }
 
+    //Add a contribution cycle
     public Task AddContributionCycleAsync(ContributionCycle cycle)
     {
         _contributionCycles.Add(cycle);
@@ -188,15 +257,17 @@ public class InMemoryRondiTrackRepository : IRondiTrackRepository
         return Task.CompletedTask;
     }
 
+    //Update a contribution cycle
     public Task UpdateContributionCycleAsync(ContributionCycle cycle)
     {
         return Task.CompletedTask;
     }
 
+    //Delete a contribution cycle
     public Task<bool> DeleteContributionCycleAsync(int id)
     {
         var cycle = _contributionCycles
-            .FirstOrDefault(c => c.Id == id);
+            .FirstOrDefault(cycle => cycle.Id == id);
 
         if (cycle is null)
         {
@@ -207,25 +278,31 @@ public class InMemoryRondiTrackRepository : IRondiTrackRepository
 
         return Task.FromResult(true);
     }
+
+
+    //CRUD Operations for Payout
+    //Add a payout
     public Task AddPayoutAsync(Payout payout)
     {
         _payouts.Add(payout);
+
         return Task.CompletedTask;
     }
 
+    //Process a payout
     public Task ProcessPayoutAsync(
-    Payout payout,
-    ContributionCycle cycle)
-{
-    cycle.MarkAsPaid();
-    _payouts.Add(payout);
+        Payout payout,
+        ContributionCycle cycle)
+    {
+        cycle.MarkAsPaid();
+        _payouts.Add(payout);
 
-    return Task.CompletedTask;
-}
+        return Task.CompletedTask;
+    }
 
+    //Get all payouts
     public Task<IReadOnlyCollection<Payout>> GetPayoutsAsync()
     {
         return Task.FromResult<IReadOnlyCollection<Payout>>(_payouts);
     }
-
 }

@@ -22,9 +22,15 @@ public class RondiTrackDbContext : DbContext
         modelBuilder.Entity<StokvelMember>()
             .HasKey(member => new { member.StokvelId, member.UserId });
 
-        modelBuilder.Entity<StokvelMember>().HasOne<Stokvel>().WithMany().HasForeignKey(member => member.StokvelId);
+        modelBuilder.Entity<StokvelMember>()
+            .HasOne(member => member.Stokvel)
+            .WithMany(stokvel => stokvel.Members)
+            .HasForeignKey(member => member.StokvelId);
 
-        modelBuilder.Entity<StokvelMember>().HasOne<User>().WithMany().HasForeignKey(member => member.UserId);
+        modelBuilder.Entity<StokvelMember>()
+            .HasOne(member => member.User)
+            .WithMany()
+            .HasForeignKey(member => member.UserId);
 
         modelBuilder.Entity<Contribution>().HasKey(contribution => new
         {
@@ -33,7 +39,19 @@ public class RondiTrackDbContext : DbContext
             contribution.Cycle
         });
 
-        modelBuilder.Entity<ContributionCycle>().HasOne<Stokvel>().WithMany().HasForeignKey(cycle => cycle.StokvelId);
+        modelBuilder.Entity<Contribution>()
+            .HasOne(contribution => contribution.Member)
+            .WithMany()
+            .HasForeignKey(contribution => new
+        {
+            contribution.StokvelId,
+            contribution.UserId
+        });
+
+        modelBuilder.Entity<ContributionCycle>()
+        .HasOne(cycle => cycle.Stokvel)
+        .WithMany(stokvel => stokvel.ContributionCycles)
+        .HasForeignKey(cycle => cycle.StokvelId);
 
         modelBuilder.Entity<Contribution>().HasOne<User>().WithMany().HasForeignKey(contribution => contribution.UserId);
 
@@ -59,7 +77,5 @@ public class RondiTrackDbContext : DbContext
             .WithMany()
             .HasForeignKey(payout => payout.ContributionCycleId);
 
-        modelBuilder.Entity<Stokvel>()
-            .Ignore(stokvel => stokvel.Members);
     }
 }

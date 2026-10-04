@@ -4,11 +4,18 @@ public class ContributionCycle
 {
     public int Id { get; private set; }
     public int StokvelId { get; private set; }
+
+    public Stokvel Stokvel { get; private set; } = null!;
+
     public int Number { get; private set; }
     public decimal TargetAmount { get; private set; }
     public string Status { get; private set; }
 
-    public ContributionCycle(int id, int stokvelId, int number, decimal targetAmount)
+    public ContributionCycle(
+        int id,
+        int stokvelId,
+        int number,
+        decimal targetAmount)
     {
         Id = id;
         StokvelId = stokvelId;

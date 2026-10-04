@@ -5,6 +5,7 @@ using RondiTrack.DTOs.Stokvels;
 using RondiTrack.Mappers;
 using RondiTrack.Idempotency;
 using RondiTrack.Exceptions;
+using RondiTrack.DTOs.Contributions;
 
 
 namespace RondiTrack.Services;
@@ -28,20 +29,16 @@ public class RondiTrackService : IRondiTrackService
     public async Task AddMemberAsync(int stokvelId, int userId)
     {
         var stokvel = await _repository.GetStokvelByIdAsync(stokvelId);
-
         if (stokvel is null)
-        {
             throw new NotFoundException("Stokvel not found.");
-        }
 
         var user = await _repository.GetUserByIdAsync(userId);
-
         if (user is null)
-        {
             throw new NotFoundException("User not found.");
-        }
 
         stokvel.AddMember(user);
+
+        await _repository.UpdateStokvelAsync(stokvel);
     }
 
 
@@ -49,22 +46,17 @@ public class RondiTrackService : IRondiTrackService
     public async Task RemoveMemberAsync(int stokvelId, int userId)
     {
         var stokvel = await _repository.GetStokvelByIdAsync(stokvelId);
-
         if (stokvel is null)
-        {
             throw new NotFoundException("Stokvel not found.");
-        }
 
         var user = await _repository.GetUserByIdAsync(userId);
-
         if (user is null)
-        {
             throw new NotFoundException("User not found.");
-        }
 
         stokvel.RemoveMember(user);
-    }
 
+        await _repository.UpdateStokvelAsync(stokvel);
+    }
     public async Task<Contribution> RecordContributionAsync(
     int stokvelId,
     int userId,
@@ -122,7 +114,7 @@ public class RondiTrackService : IRondiTrackService
                 "The contribution cycle does not belong to this stokvel.");
         }
 
-        if (!stokvel.Members.Any(u => u.Id == userId))
+        if (!stokvel.Members.Any(member => member.UserId == userId))
         {
             throw new BusinessRuleException(
                 "User is not a member of this stokvel.");
@@ -192,9 +184,8 @@ public class RondiTrackService : IRondiTrackService
         }
 
         var members = stokvel.Members
-            .OrderBy(member => member.Id)
-            .ToList();
-
+         .OrderBy(member => member.UserId)
+         .ToList();
         if (members.Count == 0)
         {
             throw new BusinessRuleException(
@@ -210,7 +201,7 @@ public class RondiTrackService : IRondiTrackService
         var contribution =
             await _repository.GetContributionAsync(
                 stokvelId,
-                recipient.Id,
+                recipient.UserId,
                 contributionCycleId);
 
         if (contribution is null)
@@ -230,7 +221,7 @@ public class RondiTrackService : IRondiTrackService
         var payout = new Payout(
             payoutId,
             stokvelId,
-            recipient.Id,
+            recipient.UserId,
             contributionCycleId,
             stokvel.ContributionAmount * members.Count,
             DateTime.UtcNow,
@@ -241,6 +232,28 @@ public class RondiTrackService : IRondiTrackService
             cycle);
 
         return payout;
+    }
+    //Gets all contributions for a specific stokvel and contribution cycle
+    public async Task<IReadOnlyCollection<Contribution>> GetContributionsByCycleAsync(
+        int stokvelId,
+        int cycleId)
+    {
+        var contributions =
+            await _repository.GetContributionsByCycleAsync(
+                stokvelId,
+                cycleId);
+
+        return contributions;
+    }
+
+    public async Task<IReadOnlyCollection<ContributionResponse>>
+    GetContributionResponsesByCycleAsync(
+        int stokvelId,
+        int cycleId)
+    {
+        return await _repository.GetContributionResponsesByCycleAsync(
+            stokvelId,
+            cycleId);
     }
 }
 

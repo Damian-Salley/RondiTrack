@@ -138,6 +138,13 @@ namespace RondiTrack.Migrations
                     b.Property<int>("UserId")
                         .HasColumnType("integer");
 
+                    b.Property<DateTime>("JoinedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.HasKey("StokvelId", "UserId");
 
                     b.HasIndex("UserId");
@@ -193,15 +200,25 @@ namespace RondiTrack.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.HasOne("RondiTrack.Models.StokvelMember", "Member")
+                        .WithMany()
+                        .HasForeignKey("StokvelId", "UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Member");
                 });
 
             modelBuilder.Entity("RondiTrack.Models.ContributionCycle", b =>
                 {
-                    b.HasOne("RondiTrack.Models.Stokvel", null)
-                        .WithMany()
+                    b.HasOne("RondiTrack.Models.Stokvel", "Stokvel")
+                        .WithMany("ContributionCycles")
                         .HasForeignKey("StokvelId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("Stokvel");
                 });
 
             modelBuilder.Entity("RondiTrack.Models.Payout", b =>
@@ -227,17 +244,28 @@ namespace RondiTrack.Migrations
 
             modelBuilder.Entity("RondiTrack.Models.StokvelMember", b =>
                 {
-                    b.HasOne("RondiTrack.Models.Stokvel", null)
-                        .WithMany()
+                    b.HasOne("RondiTrack.Models.Stokvel", "Stokvel")
+                        .WithMany("Members")
                         .HasForeignKey("StokvelId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("RondiTrack.Models.User", null)
+                    b.HasOne("RondiTrack.Models.User", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("Stokvel");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("RondiTrack.Models.Stokvel", b =>
+                {
+                    b.Navigation("ContributionCycles");
+
+                    b.Navigation("Members");
                 });
 #pragma warning restore 612, 618
         }
