@@ -6,6 +6,7 @@ using RondiTrack.Mappers;
 using RondiTrack.Idempotency;
 using RondiTrack.Exceptions;
 using RondiTrack.DTOs.Contributions;
+using RondiTrack.DTOs.Pagination;
 
 
 namespace RondiTrack.Services;
@@ -246,14 +247,17 @@ public class RondiTrackService : IRondiTrackService
         return contributions;
     }
 
-    public async Task<IReadOnlyCollection<ContributionResponse>>
-    GetContributionResponsesByCycleAsync(
-        int stokvelId,
-        int cycleId)
+    //Gets filtered, sorted and paged contributions
+    public async Task<PagedResponse<ContributionResponse>>
+        GetPagedContributionResponsesByCycleAsync(
+            int stokvelId,
+            int cycleId,
+            ContributionPageRequest request)
     {
-        return await _repository.GetContributionResponsesByCycleAsync(
+        return await _repository.GetPagedContributionResponsesByCycleAsync(
             stokvelId,
-            cycleId);
+            cycleId,
+            request);
     }
 }
 

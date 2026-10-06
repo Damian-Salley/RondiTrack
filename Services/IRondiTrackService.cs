@@ -1,5 +1,6 @@
 using RondiTrack.Models;
 using RondiTrack.DTOs.Contributions;
+using RondiTrack.DTOs.Pagination;
 
 namespace RondiTrack.Services;
 
@@ -21,9 +22,12 @@ public interface IRondiTrackService
         int stokvelId,
         int cycleId);
 
-    Task<IReadOnlyCollection<ContributionResponse>> GetContributionResponsesByCycleAsync(
-        int stokvelId,
-        int cycleId);
+    //Gets filtered, sorted and paged contribution responses
+    Task<PagedResponse<ContributionResponse>>
+        GetPagedContributionResponsesByCycleAsync(
+            int stokvelId,
+            int cycleId,
+            ContributionPageRequest request);
 
     //Payout operations
     Task<Payout> ProcessPayoutAsync(

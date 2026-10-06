@@ -1,5 +1,6 @@
 using RondiTrack.Models;
 using RondiTrack.DTOs.Contributions;
+using RondiTrack.DTOs.Pagination;
 
 namespace RondiTrack.Repositories;
 
@@ -86,9 +87,16 @@ public interface IRondiTrackRepository
         int stokvelId,
         int cycleId);
 
+    // Gets contribution response data for a specific cycle.
     Task<IReadOnlyCollection<ContributionResponse>> GetContributionResponsesByCycleAsync(
         int stokvelId,
         int cycleId);
+
+    // Gets filtered, sorted and paged contribution response data.
+    Task<PagedResponse<ContributionResponse>> GetPagedContributionResponsesByCycleAsync(
+        int stokvelId,
+        int cycleId,
+        ContributionPageRequest request);
 
     // Gets the member and user for a specific contribution.
     Task<StokvelMember?> GetMemberForContributionAsync(

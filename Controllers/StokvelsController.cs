@@ -6,6 +6,7 @@ using RondiTrack.Mappers;
 using RondiTrack.Models;
 using RondiTrack.Repositories;
 using RondiTrack.Services;
+using RondiTrack.DTOs.Pagination;
 
 namespace RondiTrack.Controllers;
 
@@ -206,21 +207,34 @@ public class StokvelsController : ControllerBase
         return Ok(
             ContributionMapper.ToResponse(contribution));
     }
-
-    //Get all contributions for a specific stokvel and contribution cycle
-    [HttpGet("{stokvelId:int}/cycles/{cycleId:int}/contributions")]
-    public async Task<ActionResult<IReadOnlyCollection<ContributionResponse>>>
-        GetContributionsByCycle(
-            int stokvelId,
-            int cycleId)
+//Get filtered, sorted and paged contributions for a cycle
+[HttpGet("{stokvelId:int}/cycles/{cycleId:int}/contributions")]
+public async Task<ActionResult<PagedResponse<ContributionResponse>>>
+    GetContributionsByCycle(
+        int stokvelId,
+        int cycleId,
+        [FromQuery] ContributionPageRequest request)
+{
+    try
     {
-        var responses =
-            await _service.GetContributionResponsesByCycleAsync(
+        var response =
+            await _service.GetPagedContributionResponsesByCycleAsync(
                 stokvelId,
-                cycleId);
+                cycleId,
+                request);
 
-        return Ok(responses);
+        return Ok(response);
     }
+    catch (ArgumentException exception)
+    {
+        return BadRequest(new ProblemDetails
+        {
+            Status = StatusCodes.Status400BadRequest,
+            Title = "Invalid paging request",
+            Detail = exception.Message
+        });
+    }
+}
 
 
     // =========================================================

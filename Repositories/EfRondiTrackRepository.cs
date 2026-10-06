@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using RondiTrack.Data;
 using RondiTrack.Models;
 using RondiTrack.DTOs.Contributions;
+using RondiTrack.DTOs.Pagination;
 
 namespace RondiTrack.Repositories;
 
@@ -220,6 +221,150 @@ public class EfRondiTrackRepository : IRondiTrackRepository
                 contribution.Cycle == cycleId)
             .AsNoTracking()
             .ToListAsync();
+    }
+
+    // Gets a filtered, sorted and paged contribution response.
+    public async Task<PagedResponse<ContributionResponse>>
+        GetPagedContributionResponsesByCycleAsync(
+            int stokvelId,
+            int cycleId,
+            ContributionPageRequest request)
+    {
+        const int defaultPageSize = 20;
+        const int maximumPageSize = 100;
+
+        if (request.PageSize < 0)
+        {
+            throw new ArgumentException(
+                "Page size cannot be negative.");
+        }
+
+        var pageSize =
+            request.PageSize is null or 0
+                ? defaultPageSize
+                : Math.Min(request.PageSize.Value, maximumPageSize);
+
+        var sortBy =
+            request.SortBy.Trim().ToLowerInvariant();
+
+        if (sortBy != "userid" &&
+            sortBy != "amount")
+        {
+            throw new ArgumentException(
+                "SortBy must be 'userId' or 'amount'.");
+        }
+
+        PageToken? token = null;
+
+        if (!string.IsNullOrWhiteSpace(request.PageToken))
+        {
+            token = PageToken.Decode(request.PageToken);
+
+            if (token is null)
+            {
+                throw new ArgumentException(
+                    "The page token is invalid.");
+            }
+
+            var expectedFilter =
+                request.UserId?.ToString();
+
+            if (token.SortBy != sortBy ||
+                token.Filter != expectedFilter)
+            {
+                throw new ArgumentException(
+                    "The page token cannot be used with different filter or sort values.");
+            }
+        }
+
+        var query = _context.Contributions
+            .Where(contribution =>
+                contribution.StokvelId == stokvelId &&
+                contribution.Cycle == cycleId);
+
+        if (request.UserId.HasValue)
+        {
+            query = query.Where(contribution =>
+                contribution.UserId == request.UserId.Value);
+        }
+
+        if (sortBy == "userid")
+        {
+            query = query.OrderBy(contribution =>
+                contribution.UserId);
+
+            if (token is not null)
+            {
+                query = query.Where(contribution =>
+                    contribution.UserId > token.LastId);
+            }
+        }
+        else
+        {
+            query = query
+                .OrderBy(contribution =>
+                    contribution.ContributionAmount)
+                .ThenBy(contribution =>
+                    contribution.UserId);
+
+            if (token is not null &&
+                token.LastAmount.HasValue)
+            {
+                var lastAmount = token.LastAmount.Value;
+                var lastId = token.LastId;
+
+                query = query.Where(contribution =>
+                    contribution.ContributionAmount > lastAmount ||
+                    (contribution.ContributionAmount == lastAmount &&
+                     contribution.UserId > lastId));
+            }
+        }
+
+        var results = await query
+            .Select(contribution => new ContributionResponse
+            {
+                UserId = contribution.UserId,
+                StokvelId = contribution.StokvelId,
+                Cycle = contribution.Cycle,
+                ContributionAmount =
+                    contribution.ContributionAmount,
+                MemberName =
+                    contribution.Member.User.FirstName + " " +
+                    contribution.Member.User.LastName
+            })
+            .AsNoTracking()
+            .Take(pageSize + 1)
+            .ToListAsync();
+
+        var hasMore =
+            results.Count > pageSize;
+
+        var items =
+            results.Take(pageSize).ToList();
+
+        string? nextPageToken = null;
+
+        if (hasMore)
+        {
+            var lastItem = items[^1];
+
+            nextPageToken = new PageToken
+            {
+                LastId = lastItem.UserId,
+                LastAmount =
+                    sortBy == "amount"
+                        ? lastItem.ContributionAmount
+                        : null,
+                SortBy = sortBy,
+                Filter = request.UserId?.ToString()
+            }.Encode();
+        }
+
+        return new PagedResponse<ContributionResponse>
+        {
+            Items = items,
+            NextPageToken = nextPageToken
+        };
     }
 
     // Gets contribution response data using projection.
