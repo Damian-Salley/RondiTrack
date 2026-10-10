@@ -424,29 +424,35 @@ public class EfRondiTrackRepository : IRondiTrackRepository
     }
 
     // Processes a payout and updates the contribution cycle.
+    // Processes a payout and updates the contribution cycle.
     public async Task ProcessPayoutAsync(
         Payout payout,
         ContributionCycle cycle)
     {
-        await using var transaction =
-            await _context.Database.BeginTransactionAsync();
+        var strategy = _context.Database.CreateExecutionStrategy();
 
-        try
+        await strategy.ExecuteAsync(async () =>
         {
-            cycle.MarkAsPaid();
+            await using var transaction =
+                await _context.Database.BeginTransactionAsync();
 
-            _context.ContributionCycles.Update(cycle);
-            await _context.SaveChangesAsync();
+            try
+            {
+                cycle.MarkAsPaid();
 
-            await _context.Payouts.AddAsync(payout);
-            await _context.SaveChangesAsync();
+                _context.ContributionCycles.Update(cycle);
+                await _context.SaveChangesAsync();
 
-            await transaction.CommitAsync();
-        }
-        catch
-        {
-            await transaction.RollbackAsync();
-            throw;
-        }
+                await _context.Payouts.AddAsync(payout);
+                await _context.SaveChangesAsync();
+
+                await transaction.CommitAsync();
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
+        });
     }
 }
