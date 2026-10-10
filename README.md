@@ -852,3 +852,107 @@ Not every possible relationship in the domain has been converted into a navigati
 Only the relationships required for the current application behaviour and Assignment 5.2 were added.
 
 Additional relationships can be introduced later when required by future application behaviour rather than adding unnecessary relationships in advance.
+
+
+
+
+
+=================================================================================================================================
+
+
+
+
+
+## Assignment 5.4 — Clean Architecture & Integration Tests
+
+### 1. Project Structure
+- **RondiTrack:** ASP.NET Core Web API, controllers, services, validation and exception handling.
+- **RondiTrack.Domain:** Domain models, business exceptions and repository interfaces.
+- **RondiTrack.Infrastructure:** PostgreSQL database access, EF Core DbContext, repositories and migrations.
+- **RondiTrack.Tests:** Unit tests and integration tests.
+
+### 2. Clean Architecture
+- The application separates domain logic, infrastructure and API responsibilities.
+- The Domain project does not depend on Infrastructure or the API.
+- Infrastructure depends on Domain.
+- The API references Domain and Infrastructure.
+- Repository interfaces separate application logic from database implementation.
+
+### 3. Requirements
+- .NET SDK 10
+- PostgreSQL
+- Docker Desktop
+- Entity Framework Core CLI tools
+
+### 4. Database Configuration
+- PostgreSQL is used as the application database.
+- Entity Framework Core manages database operations and migrations.
+- The development database connection string is stored using .NET User Secrets.
+- Database migrations are stored in RondiTrack.Infrastructure.
+
+Configure the connection string:
+
+    dotnet user-secrets set "ConnectionStrings:RondiTrack" "Host=localhost;Port=5432;Database=ronditrack;Username=postgres;Password=YOUR_PASSWORD"
+
+Apply migrations:
+
+    dotnet ef database update --project .\RondiTrack.Infrastructure\RondiTrack.Infrastructure.csproj --startup-project .\RondiTrack.csproj
+
+### 5. Running the Application
+Restore dependencies:
+
+    dotnet restore
+
+Build the application:
+
+    dotnet build .\RondiTrack.csproj
+
+Run the API:
+
+    dotnet run --project .\RondiTrack.csproj
+
+### 6. Integration Tests
+- Integration tests use Testcontainers for .NET.
+- Docker Desktop must be running before executing integration tests.
+- Tests automatically start PostgreSQL 17 containers.
+- EF Core migrations are applied to the temporary test databases.
+- Test data is inserted automatically.
+- Each integration test uses an isolated PostgreSQL database.
+- Tests do not access or delete the development database.
+- Temporary containers are disposed of after testing.
+
+### 7. Running Tests
+Run all tests:
+
+    dotnet test .\RondiTrack.Tests\RondiTrack.Tests.csproj
+
+Run tests without rebuilding:
+
+    dotnet test .\RondiTrack.Tests\RondiTrack.Tests.csproj --no-build
+
+Run a specific test:
+
+    dotnet test .\RondiTrack.Tests\RondiTrack.Tests.csproj --filter "FullyQualifiedName~DuplicateStokvel_Returns422"
+
+### 8. Test Results
+- Total tests: 25
+- Passed: 25
+- Failed: 0
+- Skipped: 0
+
+All 25 tests passed successfully.
+
+### 9. Error Handling
+- The API uses centralized exception handling.
+- HTTP 400 is returned for request validation errors.
+- HTTP 404 is returned when a resource cannot be found.
+- HTTP 409 is returned for idempotency conflicts.
+- HTTP 422 is returned for business rule violations and duplicate resource identifiers.
+- HTTP 500 is returned for unexpected server errors.
+- Error responses use ProblemDetails with a correlation ID.
+
+### 10. Database Transactions
+- Payout processing uses an EF Core database transaction.
+- Updating a contribution cycle and creating a payout are performed atomically.
+- EF Core's execution strategy supports database retries.
+- Failed payout transactions are rolled back.

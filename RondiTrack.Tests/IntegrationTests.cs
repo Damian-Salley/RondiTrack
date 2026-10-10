@@ -14,7 +14,9 @@ public class IntegrationTests
     public async Task Users_HappyPath_CreateAndGetUser()
     {
         await using var factory =
-            new CustomWebApplicationFactory();
+     new CustomWebApplicationFactory();
+
+        await factory.InitializeAsync();
 
         var client = factory.CreateClient();
 
@@ -52,7 +54,9 @@ public class IntegrationTests
     public async Task Stokvels_HappyPath_CreateAndGetStokvel()
     {
         await using var factory =
-            new CustomWebApplicationFactory();
+     new CustomWebApplicationFactory();
+
+        await factory.InitializeAsync();
 
         var client = factory.CreateClient();
 
@@ -88,7 +92,9 @@ public class IntegrationTests
     public async Task ContributionCycles_HappyPath_CreateAndGetCycle()
     {
         await using var factory =
-            new CustomWebApplicationFactory();
+       new CustomWebApplicationFactory();
+
+        await factory.InitializeAsync();
 
         var client = factory.CreateClient();
 
@@ -129,7 +135,9 @@ public class IntegrationTests
     public async Task Contribution_SameIdempotencyKeyAndPayload_ReturnsIdenticalResponse()
     {
         await using var factory =
-            new CustomWebApplicationFactory();
+     new CustomWebApplicationFactory();
+
+        await factory.InitializeAsync();
 
         var client = factory.CreateClient();
 
@@ -206,7 +214,9 @@ public class IntegrationTests
     public async Task Contribution_SameIdempotencyKeyDifferentPayload_Returns409()
     {
         await using var factory =
-            new CustomWebApplicationFactory();
+      new CustomWebApplicationFactory();
+
+        await factory.InitializeAsync();
 
         var client = factory.CreateClient();
 

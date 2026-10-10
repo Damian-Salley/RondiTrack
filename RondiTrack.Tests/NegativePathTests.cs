@@ -1,17 +1,15 @@
 using System.Net;
 using System.Net.Http.Json;
-using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace RondiTrack.Tests;
 
 public class NegativePathTests
 {
-    // Malformed request should return 400
     [Fact]
     public async Task MalformedUser_Returns400ProblemJson()
     {
-        await using var factory =
-            new WebApplicationFactory<Program>();
+        await using var factory = new CustomWebApplicationFactory();
+        await factory.InitializeAsync();
 
         var client = factory.CreateClient();
 
@@ -37,12 +35,11 @@ public class NegativePathTests
             response.Content.Headers.ContentType?.MediaType);
     }
 
-    // Missing resource should return 404
     [Fact]
     public async Task MissingUser_Returns404ProblemJson()
     {
-        await using var factory =
-            new WebApplicationFactory<Program>();
+        await using var factory = new CustomWebApplicationFactory();
+        await factory.InitializeAsync();
 
         var client = factory.CreateClient();
 
@@ -58,12 +55,11 @@ public class NegativePathTests
             response.Content.Headers.ContentType?.MediaType);
     }
 
-    // Business rule violation should return 422
     [Fact]
     public async Task DuplicateUser_Returns422ProblemJson()
     {
-        await using var factory =
-            new WebApplicationFactory<Program>();
+        await using var factory = new CustomWebApplicationFactory();
+        await factory.InitializeAsync();
 
         var client = factory.CreateClient();
 
@@ -76,7 +72,6 @@ public class NegativePathTests
             phoneNumber = "0123456789"
         };
 
-        // First request creates the user
         var firstResponse = await client.PostAsJsonAsync(
             "/api/users",
             user);
@@ -85,7 +80,6 @@ public class NegativePathTests
             HttpStatusCode.Created,
             firstResponse.StatusCode);
 
-        // Second request uses the same ID
         var secondResponse = await client.PostAsJsonAsync(
             "/api/users",
             user);

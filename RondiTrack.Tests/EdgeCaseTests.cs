@@ -13,6 +13,8 @@ public class EdgeCaseTests
         await using var factory =
            new CustomWebApplicationFactory();
 
+        await factory.InitializeAsync();
+
         var client = factory.CreateClient();
 
         var stokvel = new
@@ -51,6 +53,8 @@ public class EdgeCaseTests
         await using var factory =
           new CustomWebApplicationFactory();
 
+        await factory.InitializeAsync();
+
         var client = factory.CreateClient();
 
         var stokvel = new
@@ -80,6 +84,8 @@ public class EdgeCaseTests
         await using var factory =
            new CustomWebApplicationFactory();
 
+        await factory.InitializeAsync();
+
         var client = factory.CreateClient();
 
         var cycle = new
@@ -104,3 +110,4 @@ public class EdgeCaseTests
             response.Content.Headers.ContentType?.MediaType);
     }
 }
+

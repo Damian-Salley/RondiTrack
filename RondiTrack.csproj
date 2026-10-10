@@ -19,10 +19,26 @@
   </ItemGroup>
 
   <ItemGroup>
-  <Compile Remove="RondiTrack.Tests/**/*.cs" />
-  <Content Remove="RondiTrack.Tests/**" />
-  <None Remove="RondiTrack.Tests/**" />
-  <EmbeddedResource Remove="RondiTrack.Tests/**" />
-</ItemGroup>
+    <ProjectReference Include="RondiTrack.Domain\RondiTrack.Domain.csproj" />
+    <ProjectReference Include="RondiTrack.Infrastructure\RondiTrack.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="RondiTrack.Tests/**/*.cs" />
+    <Compile Remove="RondiTrack.Domain/**/*.cs" />
+    <Compile Remove="RondiTrack.Infrastructure/**/*.cs" />
+
+    <Content Remove="RondiTrack.Tests/**" />
+    <Content Remove="RondiTrack.Domain/**" />
+    <Content Remove="RondiTrack.Infrastructure/**" />
+
+    <None Remove="RondiTrack.Tests/**" />
+    <None Remove="RondiTrack.Domain/**" />
+    <None Remove="RondiTrack.Infrastructure/**" />
+
+    <EmbeddedResource Remove="RondiTrack.Tests/**" />
+    <EmbeddedResource Remove="RondiTrack.Domain/**" />
+    <EmbeddedResource Remove="RondiTrack.Infrastructure/**" />
+  </ItemGroup>
 
 </Project>

@@ -16,6 +16,8 @@ public class BusinessRuleIntegrationTests
         await using var factory =
             new CustomWebApplicationFactory();
 
+        await factory.InitializeAsync();
+
         var client = factory.CreateClient();
 
         var stokvel = new
@@ -49,6 +51,8 @@ public class BusinessRuleIntegrationTests
     {
         await using var factory =
             new CustomWebApplicationFactory();
+
+        await factory.InitializeAsync();
 
         var client = factory.CreateClient();
 
@@ -85,6 +89,8 @@ public class BusinessRuleIntegrationTests
         await using var factory =
             new CustomWebApplicationFactory();
 
+        await factory.InitializeAsync();
+
         var client = factory.CreateClient();
 
         // User 1 is already a member of seeded stokvel 1.
@@ -103,6 +109,8 @@ public class BusinessRuleIntegrationTests
     {
         await using var factory =
            new CustomWebApplicationFactory();
+
+        await factory.InitializeAsync();
 
         var client = factory.CreateClient();
 
@@ -138,6 +146,8 @@ public class BusinessRuleIntegrationTests
     {
         await using var factory =
             new CustomWebApplicationFactory();
+
+        await factory.InitializeAsync();
 
         var client = factory.CreateClient();
 
@@ -188,6 +198,8 @@ public class BusinessRuleIntegrationTests
         await using var factory =
            new CustomWebApplicationFactory();
 
+        await factory.InitializeAsync();
+
         var client = factory.CreateClient();
 
         await client.PostAsJsonAsync(
@@ -234,6 +246,8 @@ public class BusinessRuleIntegrationTests
     {
         await using var factory =
             new CustomWebApplicationFactory();
+
+        await factory.InitializeAsync();
 
         var client = factory.CreateClient();
 
@@ -291,6 +305,8 @@ public class BusinessRuleIntegrationTests
     {
         await using var factory =
             new CustomWebApplicationFactory();
+
+        await factory.InitializeAsync();
 
         var client = factory.CreateClient();
 
@@ -352,6 +368,8 @@ public class BusinessRuleIntegrationTests
     {
         await using var factory =
             new CustomWebApplicationFactory();
+
+        await factory.InitializeAsync();
 
         var client = factory.CreateClient();
 
@@ -424,3 +442,4 @@ public class BusinessRuleIntegrationTests
         Assert.Null(payoutAfterFailure);
     }
 }
+

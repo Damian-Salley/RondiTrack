@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using RondiTrack.Exceptions;
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace RondiTrack.ExceptionHandling;
 
@@ -33,6 +35,9 @@ public class GlobalExceptionHandler : IExceptionHandler
             BusinessRuleException =>
                 StatusCodes.Status422UnprocessableEntity,
 
+            DbUpdateException { InnerException: PostgresException { SqlState: "23505" } } =>
+                StatusCodes.Status422UnprocessableEntity,
+
             IdempotencyConflictException =>
                 StatusCodes.Status409Conflict,
 
@@ -56,6 +61,9 @@ public class GlobalExceptionHandler : IExceptionHandler
                 BusinessRuleException =>
                     "Business rule violated",
 
+                DbUpdateException { InnerException: PostgresException { SqlState: "23505" } } =>
+                "Duplicate resource",
+
                 IdempotencyConflictException =>
                     "Idempotency conflict",
 
@@ -64,10 +72,11 @@ public class GlobalExceptionHandler : IExceptionHandler
             },
 
             // Do not expose internal exception details for unexpected errors
-            Detail = statusCode ==
-                     StatusCodes.Status500InternalServerError
-                ? "An unexpected error occurred."
-                : exception.Message
+            Detail = exception is DbUpdateException
+                  ? "A resource with the same identifier already exists."
+                  : statusCode == StatusCodes.Status500InternalServerError
+                  ? "An unexpected error occurred."
+                  : exception.Message
         };
 
         // Get the correlation ID
