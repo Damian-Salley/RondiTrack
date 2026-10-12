@@ -4,6 +4,7 @@ using RondiTrack.Models;
 using RondiTrack.DTOs.Contributions;
 using RondiTrack.DTOs.Pagination;
 
+
 namespace RondiTrack.Repositories;
 
 public class EfRondiTrackRepository : IRondiTrackRepository
@@ -32,6 +33,15 @@ public class EfRondiTrackRepository : IRondiTrackRepository
     public async Task<User?> GetUserByIdAsync(int id)
     {
         return await _context.Users.FindAsync(id);
+    }
+
+    public async Task<User?> GetUserByEmailAsync(string email)
+    {
+        var normalizedEmail = email.Trim().ToUpperInvariant();
+
+        return await _context.Users
+            .FirstOrDefaultAsync(user =>
+                user.NormalizedEmail == normalizedEmail);
     }
 
     // Adds a new user to the database.
@@ -453,6 +463,112 @@ public class EfRondiTrackRepository : IRondiTrackRepository
                 await transaction.RollbackAsync();
                 throw;
             }
+
+
+        });
+    }
+
+    // Save a new refresh token.
+    public async Task AddRefreshTokenAsync(RefreshToken token)
+    {
+        await _context.RefreshTokens.AddAsync(token);
+        await _context.SaveChangesAsync();
+    }
+
+    // Find a refresh token by its SHA-256 hash.
+    public async Task<RefreshToken?> GetRefreshTokenByHashAsync(string tokenHash)
+    {
+        return await _context.RefreshTokens
+            .FirstOrDefaultAsync(token => token.TokenHash == tokenHash);
+    }
+
+    // Retrieve every refresh token in the same family.
+    public async Task<List<RefreshToken>> GetRefreshTokensByFamilyAsync(Guid familyId)
+    {
+        return await _context.RefreshTokens
+            .Where(token => token.FamilyId == familyId)
+            .ToListAsync();
+    }
+
+    // Persist changes to tracked refresh tokens.
+    public async Task SaveChangesAsync()
+    {
+        await _context.SaveChangesAsync();
+    }
+
+    // Atomically consume a refresh token only if it is still valid.
+    public async Task<bool> TryUseRefreshTokenAsync(string tokenHash)
+    {
+        // Update only an unused, unrevoked and unexpired token.
+        var updatedRows = await _context.RefreshTokens
+            .Where(token =>
+                token.TokenHash == tokenHash &&
+                !token.IsUsed &&
+                !token.IsRevoked &&
+                token.ExpiresAt > DateTime.UtcNow)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(token => token.IsUsed, true));
+
+        // Exactly one request can successfully consume the token.
+        return updatedRows == 1;
+    }
+
+    // Consume the old token and save its replacement in one transaction.
+    public async Task<bool> RotateRefreshTokenAsync(
+        string tokenHash,
+        RefreshToken replacementToken)
+    {
+        // Use EF Core's execution strategy for PostgreSQL retries.
+        var strategy = _context.Database.CreateExecutionStrategy();
+
+        return await strategy.ExecuteAsync(async () =>
+        {
+            // Start a database transaction.
+            await using var transaction =
+                await _context.Database.BeginTransactionAsync();
+
+            // Consume the token only if it is still valid and unused.
+            var updatedRows = await _context.RefreshTokens
+                .Where(token =>
+                    token.TokenHash == tokenHash &&
+                    !token.IsUsed &&
+                    !token.IsRevoked &&
+                    token.ExpiresAt > DateTime.UtcNow)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(token => token.IsUsed, true));
+
+            // Check whether a failed rotation means token reuse.
+            if (updatedRows != 1)
+            {
+                // Read the current database state, not an EF-tracked copy.
+                var originalToken = await _context.RefreshTokens
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(token => token.TokenHash == tokenHash);
+
+                // Reusing a consumed or revoked token compromises its family.
+                if (originalToken is not null &&
+                    (originalToken.IsUsed || originalToken.IsRevoked))
+                {
+                    // Revoke all refresh tokens in this family.
+                    await _context.RefreshTokens
+                        .Where(token => token.FamilyId == originalToken.FamilyId)
+                        .ExecuteUpdateAsync(setters => setters
+                            .SetProperty(token => token.IsRevoked, true));
+                }
+
+                // Persist the revocation, if any.
+                await transaction.CommitAsync();
+                return false;
+            }
+
+            // Save the replacement token.
+            await _context.RefreshTokens.AddAsync(replacementToken);
+            await _context.SaveChangesAsync();
+
+            // Commit both changes together.
+            await transaction.CommitAsync();
+
+            return true;
         });
     }
 }

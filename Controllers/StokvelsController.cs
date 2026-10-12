@@ -1,41 +1,111 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using RondiTrack.DTOs.Contributions;
+using RondiTrack.DTOs.Pagination;
 using RondiTrack.DTOs.Stokvels;
 using RondiTrack.DTOs.Users;
 using RondiTrack.Mappers;
 using RondiTrack.Models;
 using RondiTrack.Repositories;
 using RondiTrack.Services;
-using RondiTrack.DTOs.Pagination;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 
 namespace RondiTrack.Controllers;
 
 [ApiController]
+[Authorize]
 [Route("api/stokvels")]
 public class StokvelsController : ControllerBase
 {
     private readonly IRondiTrackRepository _repository;
     private readonly IRondiTrackService _service;
+    private readonly IAuthorizationService _authorization;
 
     public StokvelsController(
         IRondiTrackRepository repository,
-        IRondiTrackService service)
+        IRondiTrackService service,
+        IAuthorizationService authorization)
     {
         _repository = repository;
         _service = service;
+        _authorization = authorization;
     }
 
+    // Get the authenticated user's ID from their JWT.
+    private int? CurrentUserId
+    {
+        get
+        {
+            var value = User.FindFirstValue(JwtRegisteredClaimNames.Sub)
+                ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            return int.TryParse(value, out var id) ? id : null;
+        }
+    }
+
+
+
+    // A non-member gets 404; a member lacking elevated permission gets 403.
+    // Both decisions are made by the resource-based authorization handler.
+    private async Task<ActionResult?> CheckAccessAsync(
+     int stokvelId,
+     bool elevated = false,
+     bool chairperson = false)
+    {
+        var memberAccess = await _authorization.AuthorizeAsync(
+            User, stokvelId, "StokvelMember");
+
+        if (!memberAccess.Succeeded)
+            return NotFound();
+
+        if (chairperson)
+        {
+            var chairpersonAccess = await _authorization.AuthorizeAsync(
+                User, stokvelId, "StokvelChairperson");
+
+            if (!chairpersonAccess.Succeeded)
+                return Forbid();
+        }
+        else if (elevated)
+        {
+            var managerAccess = await _authorization.AuthorizeAsync(
+                User, stokvelId, "StokvelManager");
+
+            if (!managerAccess.Succeeded)
+                return Forbid();
+        }
+
+        return null;
+    }
 
     // =========================================================
     // STOKVEL OPERATIONS
     // =========================================================
 
-    //Get all stokvels
+    // Return only stokvels belonging to the authenticated user.
     [HttpGet]
     public async Task<ActionResult<IReadOnlyCollection<StokvelResponse>>> GetStokvels()
     {
-        var stokvels =
-            await _repository.GetStokvelsAsync();
+        if (CurrentUserId is not int userId)
+            return Unauthorized();
+
+        var stokvels = await _repository.GetStokvelsAsync();
+
+        var responses = stokvels
+            .Where(stokvel => stokvel.Members.Any(
+                member => member.UserId == userId))
+            .Select(StokvelMapper.ToResponse)
+            .ToList();
+
+        return Ok(responses);
+    }
+
+    [HttpGet("admin/all")]
+    [Authorize(Roles = "Admin")]
+    public async Task<ActionResult<IReadOnlyCollection<StokvelResponse>>> GetAllStokvels()
+    {
+        var stokvels = await _repository.GetStokvelsAsync();
 
         var responses = stokvels
             .Select(StokvelMapper.ToResponse)
@@ -44,36 +114,43 @@ public class StokvelsController : ControllerBase
         return Ok(responses);
     }
 
-
-    //Get stokvel by ID
+    // Members can view their stokvel.
     [HttpGet("{id:int}")]
     public async Task<ActionResult<StokvelResponse>> GetStokvelById(int id)
     {
-        var stokvel =
-            await _repository.GetStokvelByIdAsync(id);
+        var accessFailure = await CheckAccessAsync(id);
+        if (accessFailure is not null)
+            return accessFailure;
+
+        var stokvel = await _repository.GetStokvelByIdAsync(id);
 
         if (stokvel is null)
-        {
             return NotFound();
-        }
 
-        return Ok(
-            StokvelMapper.ToResponse(stokvel));
+        return Ok(StokvelMapper.ToResponse(stokvel));
     }
 
-
-    //Create a new stokvel
+    // Create a stokvel and assign its creator as Chairperson.
     [HttpPost]
     public async Task<ActionResult<StokvelResponse>> CreateStokvel(
         CreateStokvelRequest request)
     {
-        var stokvel =
-            StokvelMapper.ToDomain(request);
+        if (CurrentUserId is not int userId)
+            return Unauthorized();
+
+        var user = await _repository.GetUserByIdAsync(userId);
+
+        if (user is null)
+            return Unauthorized();
+
+        var stokvel = StokvelMapper.ToDomain(request);
+
+        // Add the creator before saving the stokvel.
+        stokvel.AddMember(user, "Chairperson");
 
         await _repository.AddStokvelAsync(stokvel);
 
-        var response =
-            StokvelMapper.ToResponse(stokvel);
+        var response = StokvelMapper.ToResponse(stokvel);
 
         return CreatedAtAction(
             nameof(GetStokvelById),
@@ -81,115 +158,114 @@ public class StokvelsController : ControllerBase
             response);
     }
 
-
-    //Update a stokvel
+    // Only the Chairperson can update stokvel details.
     [HttpPut("{id:int}")]
     public async Task<IActionResult> UpdateStokvel(
         int id,
         UpdateStokvelRequest request)
     {
-        var stokvel =
-            await _repository.GetStokvelByIdAsync(id);
+        var accessFailure = await CheckAccessAsync(id, chairperson: true);
+        if (accessFailure is not null)
+            return accessFailure;
+
+        var stokvel = await _repository.GetStokvelByIdAsync(id);
 
         if (stokvel is null)
-        {
             return NotFound();
-        }
 
-        StokvelMapper.Update(
-            stokvel,
-            request);
+        StokvelMapper.Update(stokvel, request);
 
-        var updated =
-            await _repository.UpdateStokvelAsync(stokvel);
+        var updated = await _repository.UpdateStokvelAsync(stokvel);
 
-        if (!updated)
-        {
-            return NotFound();
-        }
-
-        return NoContent();
+        return updated ? NoContent() : NotFound();
     }
 
-
-    //Delete a stokvel
+    // Only the Chairperson can delete a stokvel.
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> DeleteStokvel(int id)
     {
-        var deleted =
-            await _repository.DeleteStokvelAsync(id);
+        var accessFailure = await CheckAccessAsync(id, chairperson: true);
+        if (accessFailure is not null)
+            return accessFailure;
 
-        if (!deleted)
-        {
-            return NotFound();
-        }
+        var deleted = await _repository.DeleteStokvelAsync(id);
 
-        return NoContent();
+        return deleted ? NoContent() : NotFound();
     }
-
 
     // =========================================================
     // MEMBER OPERATIONS
     // =========================================================
 
-    //Get all members of a stokvel
+    // Members can view other members of their stokvel.
     [HttpGet("{stokvelId:int}/members")]
     public async Task<ActionResult<IReadOnlyCollection<UserResponse>>> GetStokvelMembers(
         int stokvelId)
     {
-        var stokvel =
-            await _repository.GetStokvelByIdAsync(stokvelId);
+        var accessFailure = await CheckAccessAsync(stokvelId);
+        if (accessFailure is not null)
+            return accessFailure;
+
+        var stokvel = await _repository.GetStokvelByIdAsync(stokvelId);
 
         if (stokvel is null)
-        {
             return NotFound();
-        }
 
-        var responses = new List<UserResponse>();
-
-        foreach (var member in stokvel.Members)
-        {
-            responses.Add(
-                UserMapper.ToResponse(member.User));
-        }
+        var responses = stokvel.Members
+            .Select(member => UserMapper.ToResponse(member.User))
+            .ToList();
 
         return Ok(responses);
     }
 
-
-    //Add a member to a stokvel
+    // Only the Chairperson can add members.
     [HttpPost("{stokvelId:int}/members/{userId:int}")]
     public async Task<IActionResult> AddMember(
         int stokvelId,
         int userId)
     {
-        await _service.AddMemberAsync(
-            stokvelId,
-            userId);
+        var accessFailure = await CheckAccessAsync(stokvelId, chairperson: true);
+        if (accessFailure is not null)
+            return accessFailure;
+
+
+        await _service.AddMemberAsync(stokvelId, userId);
 
         return NoContent();
     }
 
-
-    //Remove a member from a stokvel
+    // Only the Chairperson can remove members.
     [HttpDelete("{stokvelId:int}/members/{userId:int}")]
     public async Task<IActionResult> RemoveMember(
         int stokvelId,
         int userId)
     {
-        await _service.RemoveMemberAsync(
-            stokvelId,
-            userId);
+        var accessFailure = await CheckAccessAsync(stokvelId, chairperson: true);
+        if (accessFailure is not null)
+            return accessFailure;
+
+
+        // Prevent the Chairperson from removing themselves.
+        if (CurrentUserId == userId)
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Status = 400,
+                Title = "Cannot remove yourself"
+            });
+        }
+
+        await _service.RemoveMemberAsync(stokvelId, userId);
 
         return NoContent();
     }
-
 
     // =========================================================
     // CONTRIBUTION OPERATIONS
     // =========================================================
 
-    //Record a contribution
+    // Members can record their own contributions.
+    // Treasurer and Chairperson can record contributions for others.
     [HttpPost("{stokvelId:int}/members/{userId:int}/contributions")]
     public async Task<ActionResult<ContributionResponse>> RecordContribution(
         int stokvelId,
@@ -197,60 +273,72 @@ public class StokvelsController : ControllerBase
         RecordContributionRequest request,
         [FromHeader(Name = "Idempotency-Key")] string idempotencyKey)
     {
-        var contribution =
-            await _service.RecordContributionAsync(
-                stokvelId,
-                userId,
-                request.Cycle,
-                idempotencyKey);
+        var accessFailure = await CheckAccessAsync(
+            stokvelId, elevated: CurrentUserId != userId);
+        if (accessFailure is not null)
+            return accessFailure;
 
-        return Ok(
-            ContributionMapper.ToResponse(contribution));
-    }
-//Get filtered, sorted and paged contributions for a cycle
-[HttpGet("{stokvelId:int}/cycles/{cycleId:int}/contributions")]
-public async Task<ActionResult<PagedResponse<ContributionResponse>>>
-    GetContributionsByCycle(
-        int stokvelId,
-        int cycleId,
-        [FromQuery] ContributionPageRequest request)
-{
-    try
-    {
-        var response =
-            await _service.GetPagedContributionResponsesByCycleAsync(
-                stokvelId,
-                cycleId,
-                request);
+        // Verify the target user is also a stokvel member.
 
-        return Ok(response);
+        var contribution = await _service.RecordContributionAsync(
+            stokvelId,
+            userId,
+            request.Cycle,
+            idempotencyKey);
+
+        return Ok(ContributionMapper.ToResponse(contribution));
     }
-    catch (ArgumentException exception)
+
+    // Members can view contributions for their stokvel.
+    [HttpGet("{stokvelId:int}/cycles/{cycleId:int}/contributions")]
+    public async Task<ActionResult<PagedResponse<ContributionResponse>>>
+        GetContributionsByCycle(
+            int stokvelId,
+            int cycleId,
+            [FromQuery] ContributionPageRequest request)
     {
-        return BadRequest(new ProblemDetails
+        var accessFailure = await CheckAccessAsync(stokvelId);
+        if (accessFailure is not null)
+            return accessFailure;
+
+        try
         {
-            Status = StatusCodes.Status400BadRequest,
-            Title = "Invalid paging request",
-            Detail = exception.Message
-        });
-    }
-}
+            var response =
+                await _service.GetPagedContributionResponsesByCycleAsync(
+                    stokvelId,
+                    cycleId,
+                    request);
 
+            return Ok(response);
+        }
+        catch (ArgumentException exception)
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Status = StatusCodes.Status400BadRequest,
+                Title = "Invalid paging request",
+                Detail = exception.Message
+            });
+        }
+    }
 
     // =========================================================
     // PAYOUT OPERATIONS
     // =========================================================
 
-    //Process a payout
+    // Only Treasurer and Chairperson can process payouts.
     [HttpPost("{stokvelId:int}/cycles/{contributionCycleId:int}/payout")]
     public async Task<ActionResult<Payout>> ProcessPayout(
         int stokvelId,
         int contributionCycleId)
     {
-        var payout =
-            await _service.ProcessPayoutAsync(
-                stokvelId,
-                contributionCycleId);
+        var accessFailure = await CheckAccessAsync(stokvelId, elevated: true);
+        if (accessFailure is not null)
+            return accessFailure;
+
+        var payout = await _service.ProcessPayoutAsync(
+            stokvelId,
+            contributionCycleId);
 
         return Ok(payout);
     }

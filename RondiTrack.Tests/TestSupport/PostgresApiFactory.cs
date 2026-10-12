@@ -30,9 +30,17 @@ public class PostgresApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
+        // Use the PostgreSQL Testcontainer instead of the development database.
         builder.UseSetting(
             "ConnectionStrings:RondiTrack",
             _container.GetConnectionString());
+
+        // Generate a separate JWT signing key for each test factory.
+        // No real signing secrets are stored in the test project.
+        builder.UseSetting(
+            "Jwt:Key",
+            Convert.ToBase64String(
+                System.Security.Cryptography.RandomNumberGenerator.GetBytes(32)));
     }
 
     public new async Task DisposeAsync()

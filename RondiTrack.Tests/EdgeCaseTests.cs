@@ -1,14 +1,15 @@
 using System.Net;
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
+using System.Text.Json;
 
 namespace RondiTrack.Tests;
 
 public class EdgeCaseTests
 {
-    
+
     [Fact]
-    public async Task NewStokvel_WithNoMembers_ReturnsEmptyMemberCollection()
+    public async Task NewStokvel_CreatorBecomesFirstMember()
     {
         await using var factory =
            new CustomWebApplicationFactory();
@@ -44,7 +45,15 @@ public class EdgeCaseTests
         var body =
             await membersResponse.Content.ReadAsStringAsync();
 
-        Assert.Equal("[]", body);
+        using var json = JsonDocument.Parse(body);
+
+        var members = json.RootElement;
+
+        Assert.Equal(
+            JsonValueKind.Array,
+            members.ValueKind);
+
+        Assert.Single(members.EnumerateArray());
     }
 
     [Fact]

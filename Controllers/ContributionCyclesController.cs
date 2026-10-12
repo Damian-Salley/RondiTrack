@@ -1,90 +1,130 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using RondiTrack.DTOs.ContributionCycles;
 using RondiTrack.Exceptions;
 using RondiTrack.Mappers;
 using RondiTrack.Repositories;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 
 namespace RondiTrack.Controllers;
 
 [ApiController]
+[Authorize]
 [Route("api/contribution-cycles")]
 public class ContributionCyclesController : ControllerBase
 {
     private readonly IRondiTrackRepository _repository;
+    private readonly IAuthorizationService _authorization;
 
     public ContributionCyclesController(
-        IRondiTrackRepository repository)
+        IRondiTrackRepository repository,
+        IAuthorizationService authorization)
     {
         _repository = repository;
+        _authorization = authorization;
     }
 
-    // Get all contribution cycles
+    // Get the authenticated user's ID.
+    private int? CurrentUserId
+    {
+        get
+        {
+            var value = User.FindFirstValue(JwtRegisteredClaimNames.Sub)
+                ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            return int.TryParse(value, out var id) ? id : null;
+        }
+    }
+
+    // Non-member = 404. Member without permission = 403.
+    private async Task<ActionResult?> CheckAccessAsync(
+        int stokvelId,
+        bool elevated = false)
+    {
+        var memberAccess = await _authorization.AuthorizeAsync(
+            User, stokvelId, "StokvelMember");
+
+        if (!memberAccess.Succeeded)
+            return NotFound();
+
+        if (elevated)
+        {
+            var managerAccess = await _authorization.AuthorizeAsync(
+                User, stokvelId, "StokvelManager");
+
+            if (!managerAccess.Succeeded)
+                return Forbid();
+        }
+
+        return null;
+    }
+
+    // Return only cycles belonging to the authenticated user's stokvels.
     [HttpGet]
-    [EndpointSummary("Get all contribution cycles")]
-    [EndpointDescription("Returns all contribution cycles currently stored in RondiTrack.")]
-    [ProducesResponseType(typeof(IReadOnlyCollection<ContributionCycleResponse>), StatusCodes.Status200OK)]
     public async Task<ActionResult<IReadOnlyCollection<ContributionCycleResponse>>>
         GetContributionCycles()
     {
-        var cycles =
-            await _repository.GetContributionCyclesAsync();
+        if (CurrentUserId is not int userId)
+            return Unauthorized();
+
+        var cycles = await _repository.GetContributionCyclesAsync();
 
         var responses = new List<ContributionCycleResponse>();
 
         foreach (var cycle in cycles)
         {
-            responses.Add(
-                ContributionCycleMapper.ToResponse(cycle));
+            var membership = await _repository.GetMemberForContributionAsync(
+                cycle.StokvelId,
+                userId);
+
+            if (membership is not null)
+            {
+                responses.Add(
+                    ContributionCycleMapper.ToResponse(cycle));
+            }
         }
 
         return Ok(responses);
     }
 
-    // Get contribution cycle by ID
+    // Members can view cycles belonging to their stokvel.
     [HttpGet("{id:int}")]
-    [EndpointSummary("Get a contribution cycle by ID")]
-    [EndpointDescription("Returns the contribution cycle with the specified ID.")]
-    [ProducesResponseType(typeof(ContributionCycleResponse), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ContributionCycleResponse>>
-         GetContributionCycle(int id)
+        GetContributionCycle(int id)
     {
-        var cycle =
-            await _repository.GetContributionCycleByIdAsync(id);
+        var cycle = await _repository.GetContributionCycleByIdAsync(id);
 
         if (cycle is null)
-        {
-            throw new NotFoundException(
-                $"No contribution cycle with ID {id} was found.");
-        }
+            return NotFound();
 
-        return Ok(
-            ContributionCycleMapper.ToResponse(cycle));
+        var accessFailure = await CheckAccessAsync(cycle.StokvelId);
+
+        if (accessFailure is not null)
+            return accessFailure;
+
+        return Ok(ContributionCycleMapper.ToResponse(cycle));
     }
 
-    // Create contribution cycle
+    // Treasurer or Chairperson can create cycles.
     [HttpPost]
-    [EndpointSummary("Create a contribution cycle")]
-    [EndpointDescription("Creates a contribution cycle for an existing stokvel.")]
-    [ProducesResponseType(typeof(ContributionCycleResponse), StatusCodes.Status201Created)]
-    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status422UnprocessableEntity)]
     public async Task<ActionResult<ContributionCycleResponse>>
-        CreateContributionCycle(
-            CreateContributionCycleRequest request)
+        CreateContributionCycle(CreateContributionCycleRequest request)
     {
-        var stokvel =
-            await _repository.GetStokvelByIdAsync(request.StokvelId);
+        var accessFailure = await CheckAccessAsync(
+            request.StokvelId,
+            elevated: true);
+
+        if (accessFailure is not null)
+            return accessFailure;
+
+        var stokvel = await _repository.GetStokvelByIdAsync(request.StokvelId);
 
         if (stokvel is null)
-        {
-            throw new NotFoundException(
-                $"No stokvel with ID {request.StokvelId} was found.");
-        }
+            return NotFound();
 
-        var existingCycle =
-            await _repository.GetContributionCycleByIdAsync(request.Id);
+        var existingCycle = await _repository.GetContributionCycleByIdAsync(
+            request.Id);
 
         if (existingCycle is not null)
         {
@@ -92,69 +132,60 @@ public class ContributionCyclesController : ControllerBase
                 $"A contribution cycle with ID {request.Id} already exists.");
         }
 
-        var cycle =
-            ContributionCycleMapper.ToDomain(request);
+        var cycle = ContributionCycleMapper.ToDomain(request);
 
         await _repository.AddContributionCycleAsync(cycle);
-
-        var response =
-            ContributionCycleMapper.ToResponse(cycle);
 
         return CreatedAtAction(
             nameof(GetContributionCycle),
             new { id = cycle.Id },
-            response);
-    }
-
-    // Update contribution cycle
-    [HttpPut("{id:int}")]
-    [EndpointSummary("Update a contribution cycle")]
-    [EndpointDescription("Updates the number and target amount of an existing contribution cycle.")]
-    [ProducesResponseType(typeof(ContributionCycleResponse), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<ContributionCycleResponse>>
-         UpdateContributionCycle(
-             int id,
-             UpdateContributionCycleRequest request)
-    {
-        var cycle =
-            await _repository.GetContributionCycleByIdAsync(id);
-
-        if (cycle is null)
-        {
-            throw new NotFoundException(
-                $"No contribution cycle with ID {id} was found.");
-        }
-
-        ContributionCycleMapper.Update(
-            cycle,
-            request);
-
-        await _repository.UpdateContributionCycleAsync(cycle);
-
-        return Ok(
             ContributionCycleMapper.ToResponse(cycle));
     }
 
-    // Delete contribution cycle
-    [HttpDelete("{id:int}")]
-    [EndpointSummary("Delete a contribution cycle")]
-    [EndpointDescription("Deletes the contribution cycle with the specified ID.")]
-    [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult>
-          DeleteContributionCycle(int id)
+    // Treasurer or Chairperson can update cycles.
+    [HttpPut("{id:int}")]
+    public async Task<ActionResult<ContributionCycleResponse>>
+        UpdateContributionCycle(
+            int id,
+            UpdateContributionCycleRequest request)
     {
-        var deleted =
-            await _repository.DeleteContributionCycleAsync(id);
+        var cycle = await _repository.GetContributionCycleByIdAsync(id);
 
-        if (!deleted)
-        {
-            throw new NotFoundException(
-                $"No contribution cycle with ID {id} was found.");
-        }
+        if (cycle is null)
+            return NotFound();
 
-        return NoContent();
+        var accessFailure = await CheckAccessAsync(
+            cycle.StokvelId,
+            elevated: true);
+
+        if (accessFailure is not null)
+            return accessFailure;
+
+        ContributionCycleMapper.Update(cycle, request);
+
+        await _repository.UpdateContributionCycleAsync(cycle);
+
+        return Ok(ContributionCycleMapper.ToResponse(cycle));
+    }
+
+    // Treasurer or Chairperson can delete cycles.
+    [HttpDelete("{id:int}")]
+    public async Task<IActionResult> DeleteContributionCycle(int id)
+    {
+        var cycle = await _repository.GetContributionCycleByIdAsync(id);
+
+        if (cycle is null)
+            return NotFound();
+
+        var accessFailure = await CheckAccessAsync(
+            cycle.StokvelId,
+            elevated: true);
+
+        if (accessFailure is not null)
+            return accessFailure;
+
+        var deleted = await _repository.DeleteContributionCycleAsync(id);
+
+        return deleted ? NoContent() : NotFound();
     }
 }

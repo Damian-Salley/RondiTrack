@@ -11,6 +11,19 @@ public class InMemoryRondiTrackRepository : IRondiTrackRepository
     private readonly List<Payout> _payouts = new();
     private readonly List<User> _users;
     private readonly List<Stokvel> _stokvels;
+    // Stores refresh tokens in memory.
+    private readonly List<RefreshToken> _refreshTokens = new();
+
+
+    public Task<User?> GetUserByEmailAsync(string email)
+    {
+        var normalizedEmail = email.Trim().ToUpperInvariant();
+
+        var user = _users.FirstOrDefault(user =>
+            user.NormalizedEmail == normalizedEmail);
+
+        return Task.FromResult(user);
+    }
 
 
     //Constructor to initialize the in-memory repository with some sample data
@@ -515,5 +528,81 @@ public class InMemoryRondiTrackRepository : IRondiTrackRepository
         return Task.FromResult<
             IReadOnlyCollection<Payout>>(
                 _payouts);
+    }
+
+    // Save a new refresh token.
+    public Task AddRefreshTokenAsync(RefreshToken token)
+    {
+        _refreshTokens.Add(token);
+        return Task.CompletedTask;
+    }
+
+    // Find a refresh token by its hash.
+    public Task<RefreshToken?> GetRefreshTokenByHashAsync(string tokenHash)
+    {
+        return Task.FromResult(
+            _refreshTokens.FirstOrDefault(token => token.TokenHash == tokenHash));
+    }
+
+    // Retrieve all tokens belonging to the same family.
+    public Task<List<RefreshToken>> GetRefreshTokensByFamilyAsync(Guid familyId)
+    {
+        return Task.FromResult(
+            _refreshTokens.Where(token => token.FamilyId == familyId).ToList());
+    }
+
+    // Changes are already stored in memory, so nothing needs saving.
+    public Task SaveChangesAsync()
+    {
+        return Task.CompletedTask;
+    }
+
+    // Consume a refresh token in the in-memory repository.
+    public Task<bool> TryUseRefreshTokenAsync(string tokenHash)
+    {
+        // Find the token.
+        var token = _refreshTokens.FirstOrDefault(
+            token => token.TokenHash == tokenHash);
+
+        // Reject invalid, expired or previously used tokens.
+        if (token is null ||
+            token.IsUsed ||
+            token.IsRevoked ||
+            token.ExpiresAt <= DateTime.UtcNow)
+        {
+            return Task.FromResult(false);
+        }
+
+        // Mark the token as used.
+        token.IsUsed = true;
+
+        return Task.FromResult(true);
+    }
+
+    // Rotate a refresh token in memory.
+    public Task<bool> RotateRefreshTokenAsync(
+        string tokenHash,
+        RefreshToken replacementToken)
+    {
+        // Find the original token.
+        var token = _refreshTokens.FirstOrDefault(
+            token => token.TokenHash == tokenHash);
+
+        // Reject invalid or previously consumed tokens.
+        if (token is null ||
+            token.IsUsed ||
+            token.IsRevoked ||
+            token.ExpiresAt <= DateTime.UtcNow)
+        {
+            return Task.FromResult(false);
+        }
+
+        // Consume the original token.
+        token.IsUsed = true;
+
+        // Store the replacement token.
+        _refreshTokens.Add(replacementToken);
+
+        return Task.FromResult(true);
     }
 }

@@ -956,3 +956,432 @@ All 25 tests passed successfully.
 - Updating a contribution cycle and creating a payout are performed atomically.
 - EF Core's execution strategy supports database retries.
 - Failed payout transactions are rolled back.
+
+
+
+
+
+=======================================================================================================================================
+
+
+
+
+---
+
+# Assignment 6.1 — Authentication & Stokvel-Scoped Authorization
+
+## 1. Overview
+
+Assignment 6.1 introduces authentication and authorization to RondiTrack.
+
+Users can register, log in, refresh their access tokens and log out.
+
+The API uses JWT authentication and PostgreSQL-backed refresh tokens.
+
+Authorization is based on each user's membership and role within a specific stokvel.
+
+This distinction is important because a user can have different roles in different stokvels.
+
+For example, a user can be a Treasurer in one stokvel and a regular Member in another.
+
+## 2. User Registration
+
+**Endpoint:** `POST /api/auth/register`
+
+Registration includes:
+
+- Password hashing using ASP.NET Core's `PasswordHasher<User>`.
+- Password validation requiring at least 12 characters.
+- FluentValidation for request validation.
+- Email normalization to prevent duplicate accounts with different email capitalization.
+- A unique database index on normalized email addresses.
+- HTTP 400 for invalid registration details.
+- HTTP 409 for duplicate email addresses.
+
+Passwords are never stored as plaintext.
+
+Every newly registered user receives the platform role `User`.
+
+Users cannot assign themselves the `Admin` role during registration.
+
+## 3. JWT Authentication
+
+**Endpoint:** `POST /api/auth/login`
+
+After successful authentication, the API issues a JWT access token.
+
+### Access Token Configuration
+
+| Setting | Value |
+|---|---|
+| Token type | JWT |
+| Maximum lifetime | 15 minutes |
+| ClockSkew | Zero |
+| Issuer | RondiTrack |
+| Audience | RondiTrack |
+| Signing algorithm | Symmetric signing |
+| Signing key | Base64-encoded key containing at least 32 bytes |
+
+`ClockSkew = TimeSpan.Zero` ensures that an expired token is rejected immediately rather than allowing an additional grace period.
+
+The JWT contains the following claims:
+
+| Claim | Purpose |
+|---|---|
+| `sub` | Identifies the authenticated user |
+| `jti` | Uniquely identifies the access token |
+| Role | Identifies the user's platform-level role |
+
+The platform role is separate from stokvel membership roles.
+
+The access token does not contain stokvel-specific roles because those permissions can change while the token remains valid.
+
+A platform role change may remain reflected in an existing JWT until that token expires.
+
+## 4. Refresh Tokens
+
+**Endpoints:**
+
+- `POST /api/auth/refresh`
+- `POST /api/auth/logout`
+
+Refresh tokens are random values rather than JWTs.
+
+Only their hashes are stored in PostgreSQL.
+
+### Refresh-Token Rotation
+
+Each refresh token can be used only once.
+
+When a refresh request succeeds:
+
+1. The existing refresh token is invalidated.
+2. A replacement refresh token is generated.
+3. The replacement token's hash is stored.
+4. The replacement refresh token is delivered in a cookie.
+5. A new JWT access token is returned.
+
+### Refresh-Token Reuse Detection
+
+If an already-used refresh token is presented again, the API treats it as possible token theft.
+
+The refresh-token family associated with that login is revoked.
+
+This also invalidates newer refresh tokens descended from the reused token.
+
+The request returns HTTP 401.
+
+A legitimate user whose session is affected must log in again.
+
+### Logout
+
+Logout revokes the session's refresh tokens.
+
+Logout is idempotent, meaning repeated logout requests do not create additional changes or errors.
+
+## 5. Refresh-Token Cookie Security
+
+Refresh tokens are delivered through an HTTP cookie rather than in the response body.
+
+| Cookie setting | Value | Reason |
+|---|---|---|
+| HttpOnly | true | Prevents JavaScript from reading the refresh token |
+| Secure | true | Restricts transmission to HTTPS |
+| SameSite | Strict | Reduces cross-site request forgery risk |
+| Path | `/api/auth` | Limits the cookie to authentication endpoints |
+
+### Frontend Token Storage
+
+The frontend should keep JWT access tokens in memory rather than persistent browser storage.
+
+Refresh tokens should remain in the HttpOnly cookie managed by the browser.
+
+Storing either token in `localStorage` increases the risk of token theft through cross-site scripting.
+
+Storing access tokens in memory means they are lost when the page is reloaded, but the application can obtain a replacement using the refresh-token cookie.
+
+HttpOnly cookies reduce JavaScript access to refresh tokens, although HTTPS and appropriate CSRF protections remain important.
+
+## 6. Secure-by-Default Authorization
+
+RondiTrack uses a fallback authorization policy.
+
+This means endpoints require authentication unless explicitly marked with `[AllowAnonymous]`.
+
+Authentication endpoints that require anonymous access remain publicly accessible.
+
+OpenAPI and Scalar documentation endpoints are also accessible without a JWT in the Development environment.
+
+### Authentication Failures
+
+| Situation | HTTP status |
+|---|---|
+| Missing access token | 401 Unauthorized |
+| Invalid or expired access token | 401 Unauthorized |
+| Authenticated user lacks permission | 403 Forbidden |
+
+Authentication and authorization failures use the `application/problem+json` response format.
+
+Login also avoids revealing whether an email address exists.
+
+An unknown email and an incorrect password produce the same HTTP 401 problem response.
+
+## 7. Stokvel-Scoped Authorization
+
+RondiTrack implements resource-based authorization using:
+
+- `StokvelAccessRequirement`
+- `StokvelAccessHandler`
+- ASP.NET Core authorization policies
+- Membership information stored in PostgreSQL
+
+The handler checks the authenticated user's membership and role for the requested stokvel.
+
+### Stokvel Roles
+
+| Role | Permissions |
+|---|---|
+| Member | View stokvel information, view cycles and contributions, record own contributions |
+| Treasurer | Member permissions, open cycles, record contributions for other members, process payouts |
+| Chairperson | Treasurer permissions, update stokvel details, manage members |
+
+### Authorization Policies
+
+**StokvelMember**
+
+Requires the authenticated user to belong to the requested stokvel.
+
+**StokvelManager**
+
+Requires the authenticated user to be a Treasurer or Chairperson of the requested stokvel.
+
+**StokvelChairperson**
+
+Requires the authenticated user to be the Chairperson of the requested stokvel.
+
+The policies use database membership information rather than trusting stokvel roles from JWT claims.
+
+## 8. Authorization Matrix
+
+The following matrix describes the intended authorization behavior.
+
+Successful requests may still fail because of validation or business rules.
+
+| Endpoint / Operation | Non-member | Member | Treasurer | Chairperson | Platform Admin* |
+|---|---|---|---|---|---|
+| View a specific stokvel | 404 | 200 | 200 | 200 | 404 |
+| View stokvel cycles | 404 | 200 | 200 | 200 | 404 |
+| View stokvel contributions | 404 | 200 | 200 | 200 | 404 |
+| Record own contribution | 404 | Success | Success | Success | 404 |
+| Record another member's contribution | 404 | 403 | Success | Success | 404 |
+| Open a contribution cycle | 404 | 403 | Success | Success | 404 |
+| Process a payout | 404 | 403 | Success | Success | 404 |
+| Update stokvel details | 404 | 403 | 403 | Success | 404 |
+| Manage stokvel members | 404 | 403 | 403 | Success | 404 |
+
+*The Platform Admin column assumes the administrator is not also a member of the stokvel. Platform Admin status does not automatically grant stokvel membership.*
+
+### Platform-Level Operations
+
+| Endpoint | Ordinary authenticated user | Platform Admin |
+|---|---|---|
+| `GET /api/stokvels` | 200 — own stokvels | 200 — own stokvels |
+| `GET /api/stokvels/admin/all` | 403 | 200 — all stokvels |
+
+Unauthenticated requests to protected endpoints return 401.
+
+## 9. Why Non-Members Receive 404
+
+A user who does not belong to a stokvel receives HTTP 404.
+
+This prevents the API from revealing whether another person's stokvel exists.
+
+For example, a user should not be able to discover private stokvels by trying different IDs.
+
+A user who belongs to a stokvel but lacks permission receives HTTP 403.
+
+The user already knows the stokvel exists, so returning 404 would not provide additional privacy.
+
+This distinction reduces unnecessary information disclosure.
+
+## 10. Why Stokvel Roles Are Not Stored in JWTs
+
+JWT access tokens represent information captured when they are issued.
+
+If a Treasurer is removed from a stokvel, an existing JWT could remain valid for up to 15 minutes.
+
+Storing the Treasurer role in the JWT would allow outdated permissions to remain usable during that period.
+
+RondiTrack avoids this by checking the `StokvelMembers` table when authorizing stokvel operations.
+
+This means membership changes can take effect without waiting for an access token to expire.
+
+Platform-level roles are handled separately.
+
+## 11. Role-Based vs Policy-Based Authorization
+
+RondiTrack demonstrates both authorization approaches.
+
+### Role-Based Authorization
+
+The platform administrator endpoint uses:
+
+```csharp
+[Authorize(Roles = "Admin")]
+```
+
+This is the single plain role check used for a platform-level operation.
+
+The rule is simple: only a platform administrator can access the endpoint.
+
+If the rule changed to allow another platform role, the role-based authorization attribute would need updating.
+
+### Policy-Based Authorization
+
+Stokvel operations use custom authorization policies.
+
+For example:
+
+```csharp
+await _authorization.AuthorizeAsync(
+    User,
+    stokvelId,
+    "StokvelManager");
+```
+
+The authorization handler checks the user's current membership and role in PostgreSQL.
+
+If the permission rules changed, the authorization requirement or handler could be updated without duplicating role checks throughout the controllers.
+
+### Why Both Are Used
+
+Platform roles apply to the entire application.
+
+Stokvel roles apply only within a specific stokvel.
+
+A user can be a Chairperson in one stokvel and a Member in another.
+
+Policy-based authorization is therefore more appropriate for stokvel-specific permissions.
+
+## 12. Platform Administrator Security
+
+The `User` entity contains a `PlatformRole` property.
+
+Supported values are:
+
+- `User`
+- `Admin`
+
+New users receive `User` by default.
+
+The registration endpoint does not accept a platform role.
+
+The Admin role must be assigned through a trusted administrative process rather than a public registration or profile-update endpoint.
+
+The Admin role is included in the JWT and is used by the platform-level role check.
+
+An Admin is not automatically authorized to perform operations inside every stokvel.
+
+## 13. Signing-Key Security
+
+The JWT signing key is stored using .NET user-secrets.
+
+The application validates the signing key during startup.
+
+The key must:
+
+- Be present in configuration.
+- Be valid Base64.
+- Decode to at least 32 bytes.
+
+If these requirements are not met, the application fails to start with a descriptive error.
+
+Real signing keys, passwords and refresh tokens must never be committed to Git or written to application logs.
+
+## 14. Integration Testing
+
+RondiTrack uses xUnit and Testcontainers with PostgreSQL.
+
+The test fixture starts a temporary PostgreSQL container, applies EF Core migrations and runs integration tests against the application.
+
+This allows tests to run independently of the developer's local PostgreSQL database.
+
+### Authentication Tests
+
+The integration tests cover:
+
+- Requests without JWTs returning 401.
+- Unknown email and incorrect password returning identical problem responses.
+- Refresh-token rotation.
+- Refresh-token replay detection.
+- Revocation of the newest token after replay.
+- Refresh rejection after logout.
+
+### Authorization Tests
+
+The integration tests cover:
+
+- Non-members receiving 404.
+- Members without sufficient permissions receiving 403.
+- Treasurers passing the payout authorization check.
+- Members recording their own contributions.
+- Members being forbidden from recording another member's contribution.
+
+Existing integration tests must continue passing.
+
+### Running Tests
+
+From the solution directory:
+
+```powershell
+dotnet build
+dotnet test .\RondiTrack.Tests\RondiTrack.Tests.csproj --verbosity normal
+```
+
+Docker must be running because Testcontainers starts PostgreSQL containers.
+
+The final test run should also be performed with the development PostgreSQL database stopped.
+
+### Final Test Result
+
+**Pending final verification.**
+
+Record the actual test count, failures and successful tests here after the final run.
+
+## 15. Authentication and Refresh Logs
+
+The assignment requires a real log excerpt showing login and refresh activity without exposing secrets.
+
+**Pending: Insert an actual sanitized log excerpt from the application.**
+
+Example of the required format (illustrative only, not an actual captured log):
+
+```text
+[Information] Login completed successfully.
+[Information] Refresh token rotated successfully.
+```
+
+The final submitted excerpt must come from a real application run.
+
+Confirm that the captured logs do not contain:
+
+- Plaintext passwords
+- JWT access tokens
+- Refresh tokens
+- JWT signing keys
+
+## 16. Remaining Verification and Limitations
+
+Before submission, the following must be confirmed:
+
+- The new contribution authorization integration test passes.
+- The Treasurer test verifies a successful operation, not only that authorization was passed.
+- The Admin endpoint rejects ordinary users with 403.
+- A trusted Admin can access the Admin endpoint successfully.
+- The complete integration test suite passes with the development database stopped.
+- A real login and refresh log excerpt has been captured.
+- No secrets are present in the repository or its Git history.
+
+These items are listed as pending verification rather than reported as completed.
+
+---

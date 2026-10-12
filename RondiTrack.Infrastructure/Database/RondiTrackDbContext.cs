@@ -17,8 +17,24 @@ public class RondiTrackDbContext : DbContext
     public DbSet<Contribution> Contributions => Set<Contribution>();
     public DbSet<Payout> Payouts => Set<Payout>();
 
+    // Stores refresh tokens for authenticated users.
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+
+        modelBuilder.Entity<User>()
+            .HasIndex(user => user.NormalizedEmail)
+            .IsUnique();
+
+        modelBuilder.Entity<User>()
+            .Property(user => user.NormalizedEmail)
+            .IsRequired();
+
+        modelBuilder.Entity<User>()
+            .Property(user => user.PasswordHash)
+            .HasMaxLength(1000);
+
         modelBuilder.Entity<StokvelMember>()
             .HasKey(member => new { member.StokvelId, member.UserId });
 
@@ -43,10 +59,10 @@ public class RondiTrackDbContext : DbContext
             .HasOne(contribution => contribution.Member)
             .WithMany()
             .HasForeignKey(contribution => new
-        {
-            contribution.StokvelId,
-            contribution.UserId
-        });
+            {
+                contribution.StokvelId,
+                contribution.UserId
+            });
 
         modelBuilder.Entity<ContributionCycle>()
         .HasOne(cycle => cycle.Stokvel)
@@ -77,5 +93,23 @@ public class RondiTrackDbContext : DbContext
             .WithMany()
             .HasForeignKey(payout => payout.ContributionCycleId);
 
+        // Ensure each refresh-token hash is unique.
+        modelBuilder.Entity<RefreshToken>()
+            .HasIndex(token => token.TokenHash)
+            .IsUnique();
+
+        // Link each refresh token to its user.
+        modelBuilder.Entity<RefreshToken>()
+            .HasOne<User>()
+            .WithMany()
+            .HasForeignKey(token => token.UserId);
+
+        // Require a token hash.
+        modelBuilder.Entity<RefreshToken>()
+            .Property(token => token.TokenHash)
+            .IsRequired();
+
     }
+
+
 }

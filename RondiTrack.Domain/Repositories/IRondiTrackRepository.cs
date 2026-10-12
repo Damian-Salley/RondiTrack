@@ -17,6 +17,9 @@ public interface IRondiTrackRepository
     // Gets one user using their ID.
     Task<User?> GetUserByIdAsync(int id);
 
+    // Gets one user using their email
+    Task<User?> GetUserByEmailAsync(string email);
+
     // Adds a new user to the database.
     Task AddUserAsync(User user);
 
@@ -118,4 +121,24 @@ public interface IRondiTrackRepository
     Task ProcessPayoutAsync(
         Payout payout,
         ContributionCycle cycle);
+
+    // Save a refresh token to the database.
+    Task AddRefreshTokenAsync(RefreshToken token);
+
+    // Find a refresh token using its hash.
+    Task<RefreshToken?> GetRefreshTokenByHashAsync(string tokenHash);
+
+    // Retrieve all tokens belonging to one token family.
+    Task<List<RefreshToken>> GetRefreshTokensByFamilyAsync(Guid familyId);
+
+    // Save changes to existing refresh tokens.
+    Task SaveChangesAsync();
+
+    // Atomically mark an unused refresh token as used.
+    Task<bool> TryUseRefreshTokenAsync(string tokenHash);
+
+    // Atomically rotate a refresh token and save its replacement.
+    Task<bool> RotateRefreshTokenAsync(
+        string tokenHash,
+        RefreshToken replacementToken);
 }

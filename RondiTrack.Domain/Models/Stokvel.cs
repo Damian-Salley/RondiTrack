@@ -1,4 +1,5 @@
 namespace RondiTrack.Models;
+
 using RondiTrack.Exceptions;
 
 public class Stokvel
@@ -51,23 +52,35 @@ public class Stokvel
     }
 
     //Method to add a member to the stokvel
-    public void AddMember(User user)
+    // Add a member to the stokvel with a specified role.
+    public void AddMember(User user, string role = "Member")
     {
+        // Ensure the user exists.
         if (user is null)
         {
             throw new ArgumentNullException(nameof(user));
         }
 
+        // Allow only supported roles.
+        if (role != "Member" &&
+            role != "Treasurer" &&
+            role != "Chairperson")
+        {
+            throw new BusinessRuleException("Invalid stokvel role.");
+        }
+
+        // Prevent duplicate memberships.
         if (_members.Any(member => member.UserId == user.Id))
         {
             throw new BusinessRuleException(
                 "User is already a member of this stokvel.");
         }
 
+        // Create the membership with the requested role.
         var member = new StokvelMember(
             Id,
             user.Id,
-            "Member",
+            role,
             DateTime.UtcNow);
 
         _members.Add(member);

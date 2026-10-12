@@ -110,6 +110,43 @@ namespace RondiTrack.Migrations
                     b.ToTable("Payouts");
                 });
 
+            modelBuilder.Entity("RondiTrack.Models.RefreshToken", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("FamilyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsRevoked")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsUsed")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("RefreshTokens");
+                });
+
             modelBuilder.Entity("RondiTrack.Models.Stokvel", b =>
                 {
                     b.Property<int>("Id")
@@ -172,11 +209,26 @@ namespace RondiTrack.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("NormalizedEmail")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("PasswordHash")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
                     b.Property<string>("PhoneNumber")
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("PlatformRole")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("NormalizedEmail")
+                        .IsUnique();
 
                     b.ToTable("Users");
                 });
@@ -235,6 +287,15 @@ namespace RondiTrack.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("RondiTrack.Models.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("RondiTrack.Models.RefreshToken", b =>
+                {
                     b.HasOne("RondiTrack.Models.User", null)
                         .WithMany()
                         .HasForeignKey("UserId")
