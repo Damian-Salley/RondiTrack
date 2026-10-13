@@ -1385,3 +1385,400 @@ Before submission, the following must be confirmed:
 These items are listed as pending verification rather than reported as completed.
 
 ---
+
+
+
+
+====================================================================================================================================
+
+
+
+
+
+---
+
+# Assignment 6.2 — Observability and POPIA-Compliant Telemetry
+
+## 1. Overview
+
+RondiTrack uses OpenTelemetry for distributed tracing, application metrics, and structured logging.
+
+The implementation includes:
+- HTTP request tracing.
+- PostgreSQL database tracing.
+- Custom business tracing for payout processing.
+- Metrics for contributions, payouts, and authorization refusals.
+- POPIA-conscious structured logging.
+- W3C trace correlation for API errors.
+- Anonymous liveness and readiness health checks.
+- Automated integration tests.
+
+**OpenTelemetry service name:** `ronditrack-api`
+
+Telemetry is exported using OTLP when the `OTEL_EXPORTER_OTLP_ENDPOINT` environment variable is configured.
+
+## 2. Distributed Tracing
+
+HTTP requests are traced automatically, excluding `/health` endpoints.
+
+Payout processing uses a custom span named `payout.process`.
+
+### Trace Hierarchy
+
+The following trace was verified in Aspire Dashboard:
+
+```text
+POST /api/stokvels/{stokvelId}/cycles/{contributionCycleId}/payout
+│
+├── PostgreSQL spans
+│
+└── payout.process
+    ├── PostgreSQL span
+    ├── PostgreSQL span
+    └── Additional PostgreSQL spans
+```
+
+### Verified Trace Results
+
+| Property | Result |
+|---|---|
+| Service | ronditrack-api |
+| HTTP operation | POST .../payout |
+| Business span | payout.process |
+| Database spans | PostgreSQL |
+| Total spans | 14 |
+| Trace depth | 3 |
+| Duration | 76.76 ms |
+| Trace ID | 3709ebca69d236abfef0c8d3b184996e |
+
+The trace confirms that PostgreSQL operations are nested inside the `payout.process` business span.
+
+### Custom Trace Attributes
+
+| Attribute | Description |
+|---|---|
+| payout.operation | Identifies the payout operation |
+| payout.outcome | Indicates success or failure |
+
+Custom trace attributes do not include passwords, authentication tokens, email addresses, or financial amounts.
+
+### Screenshot Evidence
+
+The Aspire Dashboard screenshot is stored at:
+
+`docs/aspire-payout-trace.png`
+
+It demonstrates the HTTP request, custom payout span, and nested PostgreSQL database spans.
+
+## 3. Business Metrics
+
+RondiTrack uses an OpenTelemetry Meter named `RondiTrack.Business`.
+
+### Metrics Inventory
+
+| Metric | Type | Description | Attributes |
+|---|---|---|---|
+| ronditrack.contributions.recorded | Counter | Counts successfully recorded contributions | None |
+| ronditrack.payouts.processed | Counter | Counts payout processing outcomes | outcome |
+| ronditrack.authorization.refusals | Counter | Counts authorization refusals | result |
+
+### Bounded Attribute Values
+
+| Attribute | Allowed Values |
+|---|---|
+| outcome | success, failure |
+| result | not_found, forbidden |
+
+These attributes have low cardinality and do not expose personal information.
+
+The contribution counter increments after a successful contribution.
+
+The payout counter increments for successful and failed payout operations.
+
+The authorization refusal counter increments when access to a stokvel resource is denied.
+
+## 4. Structured Logging and POPIA
+
+RondiTrack uses structured logging to record operational and security events while limiting exposure of personal information.
+
+### Logging Safeguards
+
+- Passwords are not intentionally logged.
+- Access tokens and refresh tokens are not intentionally logged.
+- Authentication failures are recorded without supplied credentials.
+- Refresh-token reuse is logged as a security event without the token value.
+- Authorization refusals are recorded without authentication secrets.
+- Request completion logs contain the HTTP method, status code, and correlation ID.
+- EF Core database command parameter values are not logged.
+- Expected client errors are not logged as server exceptions.
+
+### Privacy Audit
+
+| Area | Logged Information | Privacy Protection |
+|---|---|---|
+| HTTP requests | Method, status, correlation ID | No request bodies or tokens |
+| Successful login | User ID | No password or token |
+| Failed login | Security event | No supplied credentials |
+| Refresh-token reuse | Security event | No token value |
+| Authorization refusal | User ID, result, trace information | No authentication secrets |
+| Database operations | SQL command information | Parameter values hidden |
+| API errors | Error type, correlation ID | Expected errors handled without unnecessary exception details |
+| Payout tracing | Operation and outcome | No personal information in custom tags |
+
+### POPIA Verification
+
+Integration tests inspect captured application logs to check that sensitive values are not exposed during authentication and contribution workflows.
+
+The tested values include:
+- Email addresses.
+- Passwords.
+- Access tokens.
+- Refresh tokens.
+- A distinctive contribution amount.
+
+These tests verify the covered logging scenarios but do not constitute a complete legal POPIA compliance audit.
+
+## 5. Error Correlation
+
+RondiTrack uses W3C trace identifiers to correlate API errors with telemetry.
+
+Error responses include a `correlationId`.
+
+Example:
+
+```json
+{
+  "type": "about:blank",
+  "title": "Unauthorized",
+  "status": 401,
+  "correlationId": "<trace-id>"
+}
+```
+
+When a request contains a valid W3C `traceparent` header, its trace ID is preserved.
+
+Correlation IDs are included in:
+- Global exception responses.
+- Controller validation errors.
+- Authentication failures (401).
+- Authorization failures (403).
+
+Integration tests verify trace correlation behavior.
+
+## 6. Health Checks
+
+RondiTrack provides two anonymous health endpoints.
+
+| Endpoint | Purpose | Authentication |
+|---|---|---|
+| GET /health/live | Checks whether the application is running | Not required |
+| GET /health/ready | Checks PostgreSQL database availability | Not required |
+
+### Liveness
+
+A healthy application returns:
+
+```text
+HTTP 200
+Healthy
+```
+
+### Readiness
+
+When PostgreSQL is available:
+
+```text
+HTTP 200
+Healthy
+```
+
+When PostgreSQL is unavailable:
+
+```text
+HTTP 503
+Unhealthy
+```
+
+The database readiness check has a configured timeout of 10 seconds.
+
+### Measured Health-Check Results
+
+| Scenario | HTTP Status | Response | Duration |
+|---|---|---|---|
+| Initial request with database running | 200 | Healthy | 3.577 s |
+| Subsequent request with database running | 200 | Healthy | 0.036 s |
+| Database stopped | 503 | Unhealthy | 0.120 s |
+| Database restarted | 200 | Healthy | 0.084 s |
+
+These measurements confirm that readiness reflects PostgreSQL availability.
+
+Health endpoints are excluded from HTTP tracing.
+
+## 7. Running Aspire Dashboard
+
+Aspire Dashboard is used to inspect OpenTelemetry traces, metrics, and logs.
+
+### Prerequisites
+
+- .NET 10 SDK.
+- Docker Desktop.
+- PostgreSQL.
+- Configured RondiTrack database connection string.
+
+### Step 1 — Start Aspire
+
+Run the following command:
+
+```bash
+docker run -d --name ronditrack-aspire \
+  -p 18888:18888 \
+  -p 18889:18889 \
+  -e DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS=true \
+  -e ASPIRE_DASHBOARD_OTLP_ENDPOINT_URL=http://0.0.0.0:18889 \
+  mcr.microsoft.com/dotnet/aspire-dashboard:latest
+```
+
+Open the dashboard:
+
+http://localhost:18888
+
+**Note:** Anonymous access is enabled for local development only. Do not expose the dashboard publicly.
+
+### Step 2 — Configure OTLP
+
+In Git Bash, run:
+
+```bash
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:18889
+export OTEL_EXPORTER_OTLP_PROTOCOL=grpc
+```
+
+### Step 3 — Run the API
+
+```bash
+dotnet run
+```
+
+### Step 4 — Generate Telemetry
+
+Send an HTTP request:
+
+```bash
+curl -i http://localhost:5274/api/users
+```
+
+The API port may differ depending on the local configuration.
+
+### Step 5 — View Traces
+
+Open Aspire Dashboard and select **Traces**.
+
+To inspect payout tracing, execute a successful payout or run the payout integration test.
+
+The payout trace should contain:
+
+```text
+HTTP POST
+  └── payout.process
+        └── PostgreSQL spans
+```
+
+### Step 6 — Run the Payout Test
+
+In a terminal where the OTLP environment variables are configured:
+
+```bash
+dotnet test RondiTrack.Tests/RondiTrack.Tests.csproj --filter "FullyQualifiedName~PayoutMetricTests"
+```
+
+Refresh Aspire Dashboard after the test completes.
+
+### Step 7 — Stop or Restart Aspire
+
+Stop:
+
+```bash
+docker stop ronditrack-aspire
+```
+
+Restart:
+
+```bash
+docker start ronditrack-aspire
+```
+
+## 8. Integration Testing
+
+Observability tests use:
+- xUnit.
+- ASP.NET Core WebApplicationFactory.
+- PostgreSQL Testcontainers.
+
+### Test Coverage
+
+| Test Class | Purpose |
+|---|---|
+| ObservabilityTests | Verifies liveness, readiness, and W3C trace correlation |
+| PayoutMetricTests | Verifies successful payout metric increments |
+| PopiaLoggingTests | Checks for sensitive information in captured logs |
+| StokvelAuthorizationTests | Verifies authorization behavior and refusal scenarios |
+
+### Run All Tests
+
+```bash
+dotnet test RondiTrack.Tests/RondiTrack.Tests.csproj
+```
+
+### Run Observability-Related Tests
+
+```bash
+dotnet test RondiTrack.Tests/RondiTrack.Tests.csproj --filter "FullyQualifiedName~ObservabilityTests|FullyQualifiedName~PayoutMetricTests|FullyQualifiedName~PopiaLoggingTests|FullyQualifiedName~StokvelAuthorizationTests"
+```
+
+### Verified Payout Test Result
+
+```text
+Test Run Successful.
+Total tests: 1
+Passed: 1
+Failed: 0
+```
+
+The payout integration test verifies that a successful payout increments `ronditrack.payouts.processed` with `outcome=success`.
+
+Aspire Dashboard also confirmed an end-to-end payout trace containing 14 spans, including nested PostgreSQL activity.
+
+## 9. Telemetry Configuration
+
+| Setting | Description |
+|---|---|
+| OTEL_EXPORTER_OTLP_ENDPOINT | OpenTelemetry collector endpoint |
+| OTEL_EXPORTER_OTLP_PROTOCOL | OTLP transport protocol |
+| ConnectionStrings:RondiTrack | PostgreSQL connection string |
+| Jwt:Key | JWT signing key |
+
+OTLP export is enabled only when an endpoint is configured.
+
+Secrets must not be committed to source control.
+
+## 10. Verification Summary
+
+| Requirement | Status |
+|---|---|
+| OpenTelemetry service registration | Implemented |
+| HTTP tracing | Verified in Aspire |
+| Health endpoint tracing exclusion | Configured |
+| Custom payout.process span | Verified in Aspire |
+| Nested PostgreSQL spans | Verified in Aspire |
+| Contribution metric | Implemented |
+| Payout metric | Verified by integration test |
+| Authorization refusal metric | Implemented |
+| Bounded telemetry attributes | Implemented |
+| W3C trace correlation | Covered by integration tests |
+| POPIA-conscious logging | Covered by integration tests |
+| Anonymous liveness endpoint | Verified |
+| PostgreSQL readiness endpoint | Verified |
+| Database failure readiness response | Verified |
+| Aspire screenshot | Captured |
+
+---

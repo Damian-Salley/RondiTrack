@@ -17,15 +17,18 @@ public class AuthController : ControllerBase
 {
     private readonly IRondiTrackRepository _repository;
     private readonly IConfiguration _configuration;
+    private readonly ILogger<AuthController> _logger;
     private readonly PasswordHasher<User> _passwordHasher = new();
 
     // Inject the repository and configuration.
     public AuthController(
         IRondiTrackRepository repository,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        ILogger<AuthController> logger)
     {
         _repository = repository;
         _configuration = configuration;
+        _logger = logger;
     }
 
     // Register a new user.
@@ -98,6 +101,8 @@ public class AuthController : ControllerBase
         // Reject unknown users or missing password hashes.
         if (user is null || string.IsNullOrEmpty(user.PasswordHash))
         {
+            // No typed email or password is written to logs.
+            _logger.LogInformation("Sign-in failed. Reason=invalid_credentials");
             return Unauthorized(new ProblemDetails
             {
                 Status = 401,
@@ -115,6 +120,9 @@ public class AuthController : ControllerBase
         // Reject incorrect passwords.
         if (result == PasswordVerificationResult.Failed)
         {
+            _logger.LogInformation(
+                "Sign-in failed. UserId={UserId}, Reason=invalid_credentials",
+                user.Id);
             return Unauthorized(new ProblemDetails
             {
                 Status = 401,
@@ -154,6 +162,9 @@ public class AuthController : ControllerBase
                 Expires = storedToken.ExpiresAt,
                 Path = "/api/auth"
             });
+
+        // Record a successful sign-in without recording tokens or email.
+        _logger.LogInformation("Sign-in succeeded. UserId={UserId}", user.Id);
 
         // Return the access token.
         return Ok(new
@@ -207,6 +218,11 @@ public class AuthController : ControllerBase
             }
 
             await _repository.SaveChangesAsync();
+
+            // A reused token is a security event; never log its value or hash.
+            _logger.LogWarning(
+                "Refresh-token reuse detected. UserId={UserId}",
+                storedToken.UserId);
 
             return Unauthorized(new ProblemDetails
             {
@@ -265,6 +281,10 @@ public class AuthController : ControllerBase
                 Title = "Invalid refresh token"
             });
         }
+
+        // Log successful rotation without recording either token.
+        _logger.LogInformation(
+            "Refresh token rotated. UserId={UserId}", user.Id);
 
         // Replace the refresh-token cookie.
         Response.Cookies.Append(

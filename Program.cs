@@ -7,86 +7,226 @@ using FluentValidation.AspNetCore;
 using RondiTrack.Validators;
 using RondiTrack.ExceptionHandling;
 using RondiTrack.Authorization;
-using Microsoft.AspNetCore.Mvc;
 using RondiTrack.Data;
-using Microsoft.EntityFrameworkCore;
+using RondiTrack.HealthChecks;
+using RondiTrack.Filters;
+
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.IdentityModel.Tokens;
+
+using OpenTelemetry;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
+using OpenTelemetry.Logs;
+
+using System.Diagnostics;
 using System.Security.Claims;
-using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Validate the JWT signing key.
+// ============================================================
+// 1. JWT SIGNING KEY VALIDATION
+// ============================================================
+
+// Retrieve the JWT signing key from configuration.
 var jwtKey = builder.Configuration["Jwt:Key"]
-    ?? throw new InvalidOperationException("JWT signing key is missing.");
+    ?? throw new InvalidOperationException(
+        "JWT signing key is missing.");
 
 byte[] jwtKeyBytes;
 
+// The signing key must be Base64 encoded.
 try
 {
     jwtKeyBytes = Convert.FromBase64String(jwtKey);
 }
 catch (FormatException)
 {
-    throw new InvalidOperationException("JWT signing key must be Base64.");
+    throw new InvalidOperationException(
+        "JWT signing key must be Base64.");
 }
 
+// Require at least 32 bytes for the signing key.
 if (jwtKeyBytes.Length < 32)
 {
     throw new InvalidOperationException(
         "JWT signing key must contain at least 32 bytes.");
 }
 
-// Configure PostgreSQL.
+// ============================================================
+// 2. POSTGRESQL DATABASE CONFIGURATION
+// ============================================================
+
+// Retrieve the database connection string.
 var connectionString =
     builder.Configuration.GetConnectionString("RondiTrack")
     ?? throw new InvalidOperationException(
         "Connection string 'RondiTrack' was not found.");
 
+// Configure EF Core to use PostgreSQL.
 builder.Services.AddDbContext<RondiTrackDbContext>(options =>
+{
     options.UseNpgsql(
         connectionString,
         npgsqlOptions =>
         {
+            // Retry temporary database connection failures.
             npgsqlOptions.EnableRetryOnFailure(
                 maxRetryCount: 3,
                 maxRetryDelay: TimeSpan.FromSeconds(5),
                 errorCodesToAdd: null);
-        }));
+        });
+});
 
+// Control EF Core SQL command logging by environment.
+// Development: Information
+// Production: Warning
+builder.Logging.AddFilter(
+    "Microsoft.EntityFrameworkCore.Database.Command",
+    builder.Environment.IsDevelopment()
+        ? LogLevel.Information
+        : LogLevel.Warning);
+
+// ============================================================
+// 3. OPENTELEMETRY CONFIGURATION
+// ============================================================
+
+// Only export telemetry when an OTLP endpoint is configured.
+var otlpEndpoint =
+    builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"];
+
+// Configure OpenTelemetry tracing and metrics.
+builder.Services.AddOpenTelemetry()
+    .ConfigureResource(resource =>
+        resource.AddService("ronditrack-api"))
+
+    // Distributed tracing.
+    .WithTracing(tracing =>
+    {
+        tracing
+            // Trace incoming HTTP requests.
+            .AddAspNetCoreInstrumentation(options =>
+{
+    options.Filter = context =>
+        !context.Request.Path.StartsWithSegments("/health");
+})
+.AddSource("Npgsql")
+.AddSource("RondiTrack.Business");
+
+        // Export traces only when an endpoint exists.
+        if (!string.IsNullOrWhiteSpace(otlpEndpoint))
+        {
+            tracing.AddOtlpExporter();
+        }
+    })
+
+    // Application metrics.
+    .WithMetrics(metrics =>
+    {
+        // Collect ASP.NET Core request metrics.
+        metrics
+        .AddAspNetCoreInstrumentation()
+        .AddMeter("RondiTrack.Business");
+
+        // Export metrics only when configured.
+        if (!string.IsNullOrWhiteSpace(otlpEndpoint))
+        {
+            metrics.AddOtlpExporter();
+        }
+    });
+
+// Configure OpenTelemetry logging.
+builder.Logging.AddOpenTelemetry(logging =>
+{
+    // Identify this service in the telemetry dashboard.
+    logging.SetResourceBuilder(
+        ResourceBuilder.CreateDefault()
+            .AddService("ronditrack-api"));
+
+    // Include logging scopes.
+    logging.IncludeScopes = true;
+
+    // Export logs only when configured.
+    if (!string.IsNullOrWhiteSpace(otlpEndpoint))
+    {
+        logging.AddOtlpExporter();
+    }
+});
+
+// ============================================================
+// 4. HEALTH CHECK CONFIGURATION
+// ============================================================
+
+// Register application health checks.
+// Configure health checks.
+builder.Services.AddHealthChecks()
+    .AddCheck(
+        "self",
+        () => HealthCheckResult.Healthy(),
+        tags: new[] { "live" })
+    .AddCheck<RondiTrackDatabaseHealthCheck>(
+        "postgresql",
+        tags: new[] { "ready" },
+        timeout: TimeSpan.FromSeconds(10));
+// ============================================================
+// 5. API CONFIGURATION
+// ============================================================
+
+// Register OpenAPI documentation and controllers.
 builder.Services.AddOpenApi();
-builder.Services.AddControllers();
+builder.Services.AddControllers(options =>
+{
+    // Add correlation IDs to controller-generated errors.
+    options.Filters.Add<CorrelationIdFilter>();
+});
 
-// Configure JWT authentication.
+// ============================================================
+// 6. JWT AUTHENTICATION
+// ============================================================
+
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            RoleClaimType = ClaimTypes.Role,
-            ValidateIssuerSigningKey = true,
-            IssuerSigningKey = new SymmetricSecurityKey(jwtKeyBytes),
+        // Configure JWT validation.
+        options.TokenValidationParameters =
+            new TokenValidationParameters
+            {
+                RoleClaimType = ClaimTypes.Role,
 
-            ValidateIssuer = true,
-            ValidIssuer = "RondiTrack",
+                ValidateIssuerSigningKey = true,
+                IssuerSigningKey =
+                    new SymmetricSecurityKey(jwtKeyBytes),
 
-            ValidateAudience = true,
-            ValidAudience = "RondiTrack",
+                ValidateIssuer = true,
+                ValidIssuer = "RondiTrack",
 
-            ValidateLifetime = true,
-            ClockSkew = TimeSpan.Zero
+                ValidateAudience = true,
+                ValidAudience = "RondiTrack",
 
-        };
+                ValidateLifetime = true,
 
-        // Return Problem Details when authentication fails.
+                // Tokens expire at their exact expiration time.
+                ClockSkew = TimeSpan.Zero
+            };
+
+        // Return Problem Details for authentication failures.
         options.Events = new JwtBearerEvents
         {
+            // HTTP 401: No valid authentication.
             OnChallenge = async context =>
             {
                 context.HandleResponse();
+
+                var correlationId =
+                    Activity.Current?.TraceId.ToString()
+                    ?? context.HttpContext.TraceIdentifier;
 
                 context.Response.StatusCode =
                     StatusCodes.Status401Unauthorized;
@@ -94,76 +234,133 @@ builder.Services
                 await Results.Problem(
                     statusCode: StatusCodes.Status401Unauthorized,
                     title: "Unauthorized",
-                    detail: "Authentication is required."
+                    detail: "Authentication is required.",
+                    extensions: new Dictionary<string, object?>
+                    {
+                        ["correlationId"] = correlationId
+                    }
                 ).ExecuteAsync(context.HttpContext);
             },
 
+            // HTTP 403: Authenticated but not permitted.
             OnForbidden = async context =>
             {
+                var correlationId =
+                    Activity.Current?.TraceId.ToString()
+                    ?? context.HttpContext.TraceIdentifier;
+
                 context.Response.StatusCode =
                     StatusCodes.Status403Forbidden;
 
                 await Results.Problem(
                     statusCode: StatusCodes.Status403Forbidden,
                     title: "Forbidden",
-                    detail: "You do not have permission to perform this action."
+                    detail: "You do not have permission to perform this action.",
+                    extensions: new Dictionary<string, object?>
+                    {
+                        ["correlationId"] = correlationId
+                    }
                 ).ExecuteAsync(context.HttpContext);
             }
         };
     });
 
-// Configure authorization policies.
+// ============================================================
+// 7. AUTHORIZATION POLICIES
+// ============================================================
+
 builder.Services.AddAuthorization(options =>
 {
-    // Secure endpoints by default.
+    // Require authentication unless an endpoint allows anonymous access.
     options.FallbackPolicy = new AuthorizationPolicyBuilder()
         .RequireAuthenticatedUser()
         .Build();
 
-    // Requires membership in the requested stokvel.
+    // User must belong to the requested stokvel.
     options.AddPolicy("StokvelMember", policy =>
         policy.Requirements.Add(
             new StokvelAccessRequirement(false)));
 
-    // Requires Treasurer or Chairperson membership.
+    // User must be Treasurer or Chairperson.
     options.AddPolicy("StokvelManager", policy =>
         policy.Requirements.Add(
             new StokvelAccessRequirement(true)));
 
+    // User must be Chairperson.
     options.AddPolicy("StokvelChairperson", policy =>
-        policy.Requirements.Add(new StokvelAccessRequirement(
-            requireChairperson: true)));
+        policy.Requirements.Add(
+            new StokvelAccessRequirement(
+                requireChairperson: true)));
 });
 
 // Register the custom authorization handler.
-builder.Services.AddScoped<IAuthorizationHandler, StokvelAccessHandler>();
+builder.Services.AddScoped<
+    IAuthorizationHandler,
+    StokvelAccessHandler>();
 
-// Register application services.
+// ============================================================
+// 8. APPLICATION SERVICES
+// ============================================================
+
+// Register FluentValidation.
 builder.Services.AddFluentValidationAutoValidation();
-builder.Services.AddValidatorsFromAssemblyContaining<CreateUserRequestValidator>();
 
-builder.Services.AddScoped<IRondiTrackRepository, EfRondiTrackRepository>();
-builder.Services.AddSingleton<IIdempotencyStore, InMemoryIdempotencyStore>();
-builder.Services.AddScoped<IRondiTrackService, RondiTrackService>();
+builder.Services.AddValidatorsFromAssemblyContaining<
+    CreateUserRequestValidator>();
 
+// Register repository and application services.
+builder.Services.AddScoped<
+    IRondiTrackRepository,
+    EfRondiTrackRepository>();
+
+builder.Services.AddSingleton<
+    IIdempotencyStore,
+    InMemoryIdempotencyStore>();
+
+builder.Services.AddScoped<
+    IRondiTrackService,
+    RondiTrackService>();
+
+// ============================================================
+// 9. EXCEPTION HANDLING AND PROBLEM DETAILS
+// ============================================================
+
+// Register the global exception handler.
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
-builder.Services.AddProblemDetails();
 
-// Configure validation error responses.
+// Add the W3C trace ID to automatically generated problem responses.
+builder.Services.AddProblemDetails(options =>
+{
+    options.CustomizeProblemDetails = context =>
+    {
+        context.ProblemDetails.Extensions["correlationId"] =
+            Activity.Current?.TraceId.ToString()
+            ?? context.HttpContext.TraceIdentifier;
+    };
+});
+
+// ============================================================
+// 10. VALIDATION ERROR RESPONSES
+// ============================================================
+
 builder.Services.Configure<ApiBehaviorOptions>(options =>
 {
     options.InvalidModelStateResponseFactory = context =>
     {
+        // Use the request's W3C trace ID.
         var correlationId =
-            context.HttpContext.TraceIdentifier;
+            Activity.Current?.TraceId.ToString()
+            ?? context.HttpContext.TraceIdentifier;
 
         var logger = context.HttpContext.RequestServices
             .GetRequiredService<ILogger<Program>>();
 
-        logger.LogWarning(
+        // Log the validation failure without sensitive request values.
+        logger.LogInformation(
             "Request validation failed with correlation ID {CorrelationId}",
             correlationId);
 
+        // Collect validation errors.
         var errors = context.ModelState
             .Where(x => x.Value?.Errors.Count > 0)
             .ToDictionary(
@@ -172,6 +369,7 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
                     .Select(e => e.ErrorMessage)
                     .ToArray());
 
+        // Create the validation problem response.
         var problemDetails = new ValidationProblemDetails(errors)
         {
             Status = StatusCodes.Status400BadRequest,
@@ -179,6 +377,7 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
             Detail = "One or more request fields are invalid."
         };
 
+        // Include the correlation ID.
         problemDetails.Extensions["correlationId"] =
             correlationId;
 
@@ -192,27 +391,120 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
     };
 });
 
+// ============================================================
+// 11. BUILD APPLICATION
+// ============================================================
+
 var app = builder.Build();
 
-// Configure OpenAPI and Scalar in development.
+// ============================================================
+// 12. DEVELOPMENT API DOCUMENTATION
+// ============================================================
+
 if (app.Environment.IsDevelopment())
 {
+    // Allow anonymous access to API documentation.
     app.MapOpenApi().AllowAnonymous();
     app.MapScalarApiReference().AllowAnonymous();
 }
 
-// Configure middleware.
+// ============================================================
+// 13. MIDDLEWARE
+// ============================================================
+
+// Handle application exceptions.
 app.UseExceptionHandler();
 
+// Add a W3C trace ID to every request log.
+app.Use(async (context, next) =>
+{
+    var correlationId =
+        Activity.Current?.TraceId.ToString()
+        ?? context.TraceIdentifier;
+
+    var logger = context.RequestServices
+        .GetRequiredService<ILogger<Program>>();
+
+    // Include the trace ID in logs written during this request.
+    using (logger.BeginScope(new Dictionary<string, object>
+    {
+        ["CorrelationId"] = correlationId
+    }))
+    {
+        await next();
+
+        // Log the completed request without query strings or request bodies.
+        logger.LogInformation(
+            "Request completed. Method={Method}, StatusCode={StatusCode}, CorrelationId={CorrelationId}",
+            context.Request.Method,
+            context.Response.StatusCode,
+            correlationId);
+    }
+});
+
+// Redirect HTTP requests to HTTPS.
 app.UseHttpsRedirection();
 
+// Authenticate incoming requests.
 app.UseAuthentication();
+
+// Enforce authorization policies.
 app.UseAuthorization();
 
+// Map API controllers.
 app.MapControllers();
+
+// ============================================================
+// 14. HEALTH ENDPOINTS
+// ============================================================
+
+// Liveness: confirms that the application is running.
+// Does not execute database checks.
+app.MapHealthChecks(
+    "/health/live",
+    new HealthCheckOptions
+    {
+        Predicate = _ => false,
+
+        ResponseWriter = async (context, report) =>
+        {
+            context.Response.ContentType = "text/plain";
+
+            await context.Response.WriteAsync(
+                report.Status == HealthStatus.Healthy
+                    ? "Healthy"
+                    : "Unhealthy");
+        }
+    })
+    .AllowAnonymous();
+
+// Readiness: checks whether PostgreSQL is accessible.
+// Returns only Healthy or Unhealthy, without database details.
+app.MapHealthChecks(
+    "/health/ready",
+    new HealthCheckOptions
+    {
+        Predicate = check => check.Tags.Contains("ready"),
+
+        ResponseWriter = async (context, report) =>
+        {
+            context.Response.ContentType = "text/plain";
+
+            await context.Response.WriteAsync(
+                report.Status == HealthStatus.Healthy
+                    ? "Healthy"
+                    : "Unhealthy");
+        }
+    })
+    .AllowAnonymous();
+
+// ============================================================
+// 15. START APPLICATION
+// ============================================================
 
 app.Run();
 
+// Required for integration tests.
 public partial class Program
 {
 }

@@ -7,6 +7,8 @@ using RondiTrack.Idempotency;
 using RondiTrack.Exceptions;
 using RondiTrack.DTOs.Contributions;
 using RondiTrack.DTOs.Pagination;
+using RondiTrack.Telemetry;
+using System.Diagnostics;
 
 
 namespace RondiTrack.Services;
@@ -146,8 +148,12 @@ public class RondiTrackService : IRondiTrackService
             contribution);
 
         await _idempotencyStore.SaveAsync(
-            idempotencyKey,
-            record);
+     idempotencyKey,
+     record);
+
+        // Count only newly recorded contributions.
+        // Idempotent retries do not increment the counter.
+        RondiTrackTelemetry.ContributionsRecorded.Add(1);
 
         return contribution;
     }
@@ -156,83 +162,123 @@ public class RondiTrackService : IRondiTrackService
     int stokvelId,
     int contributionCycleId)
     {
-        var stokvel =
-            await _repository.GetStokvelByIdAsync(stokvelId);
+        // Create a custom span for the payout business operation.
+        using var activity =
+            RondiTrackTelemetry.ActivitySource.StartActivity(
+                "payout.process");
 
-        if (stokvel is null)
+        // Cycle ID is intentionally not recorded.
+        // Only the fixed outcome values are used as tags.
+        activity?.SetTag("payout.operation", "process");
+
+        try
         {
-            throw new NotFoundException("Stokvel not found.");
-        }
+            var stokvel =
+                await _repository.GetStokvelByIdAsync(stokvelId);
 
-        var cycle =
-            await _repository.GetContributionCycleByIdAsync(contributionCycleId);
+            if (stokvel is null)
+            {
+                throw new NotFoundException("Stokvel not found.");
+            }
 
-        if (cycle is null)
-        {
-            throw new NotFoundException("Contribution cycle not found.");
-        }
+            var cycle =
+                await _repository.GetContributionCycleByIdAsync(
+                    contributionCycleId);
 
-        if (cycle.StokvelId != stokvelId)
-        {
-            throw new BusinessRuleException(
-                "The contribution cycle does not belong to this stokvel.");
-        }
+            if (cycle is null)
+            {
+                throw new NotFoundException(
+                    "Contribution cycle not found.");
+            }
 
-        if (cycle.Status == "Paid")
-        {
-            throw new BusinessRuleException(
-                "This contribution cycle has already been paid out.");
-        }
+            if (cycle.StokvelId != stokvelId)
+            {
+                throw new BusinessRuleException(
+                    "The contribution cycle does not belong to this stokvel.");
+            }
 
-        var members = stokvel.Members
-         .OrderBy(member => member.UserId)
-         .ToList();
-        if (members.Count == 0)
-        {
-            throw new BusinessRuleException(
-                "This stokvel has no members.");
-        }
+            if (cycle.Status == "Paid")
+            {
+                throw new BusinessRuleException(
+                    "This contribution cycle has already been paid out.");
+            }
 
-        var rotationIndex =
-            (cycle.Number - 1) % members.Count;
+            var members = stokvel.Members
+                .OrderBy(member => member.UserId)
+                .ToList();
 
-        var recipient =
-            members[rotationIndex];
+            if (members.Count == 0)
+            {
+                throw new BusinessRuleException(
+                    "This stokvel has no members.");
+            }
 
-        var contribution =
-            await _repository.GetContributionAsync(
+            var rotationIndex =
+                (cycle.Number - 1) % members.Count;
+
+            var recipient = members[rotationIndex];
+
+            var contribution =
+                await _repository.GetContributionAsync(
+                    stokvelId,
+                    recipient.UserId,
+                    contributionCycleId);
+
+            if (contribution is null)
+            {
+                throw new BusinessRuleException(
+                    "The next member in the rotation has not contributed to this cycle.");
+            }
+
+            var payouts =
+                await _repository.GetPayoutsAsync();
+
+            var payoutId =
+                payouts.Count == 0
+                    ? 1
+                    : payouts.Max(payout => payout.Id) + 1;
+
+            var payout = new Payout(
+                payoutId,
                 stokvelId,
                 recipient.UserId,
-                contributionCycleId);
+                contributionCycleId,
+                stokvel.ContributionAmount * members.Count,
+                DateTime.UtcNow,
+                rotationIndex + 1);
 
-        if (contribution is null)
-        {
-            throw new BusinessRuleException(
-                "The next member in the rotation has not contributed to this cycle.");
+            // Database operations occur inside the payout span.
+            await _repository.ProcessPayoutAsync(
+                payout,
+                cycle);
+
+            // Record successful payout.
+            activity?.SetTag("payout.outcome", "success");
+
+            RondiTrackTelemetry.PayoutsProcessed.Add(
+                1,
+                new KeyValuePair<string, object?>(
+                    "outcome",
+                    "success"));
+
+            return payout;
         }
+        catch
+        {
+            // Mark the payout span as failed.
+            activity?.SetTag("payout.outcome", "failure");
 
-        var payouts =
-            await _repository.GetPayoutsAsync();
+            activity?.SetStatus(ActivityStatusCode.Error);
 
-        var payoutId =
-            payouts.Count == 0
-                ? 1
-                : payouts.Max(payout => payout.Id) + 1;
+            // Count failed payouts without recording sensitive values.
+            RondiTrackTelemetry.PayoutsProcessed.Add(
+                1,
+                new KeyValuePair<string, object?>(
+                    "outcome",
+                    "failure"));
 
-        var payout = new Payout(
-            payoutId,
-            stokvelId,
-            recipient.UserId,
-            contributionCycleId,
-            stokvel.ContributionAmount * members.Count,
-            DateTime.UtcNow,
-            rotationIndex + 1);
-
-        await _repository.ProcessPayoutAsync(
-            payout,
-            cycle);
-
-        return payout;
+            throw;
+        }
     }
     //Gets all contributions for a specific stokvel and contribution cycle
     public async Task<IReadOnlyCollection<Contribution>> GetContributionsByCycleAsync(

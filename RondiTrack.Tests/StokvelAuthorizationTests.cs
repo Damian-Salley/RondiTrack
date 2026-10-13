@@ -123,11 +123,38 @@ public class StokvelAuthorizationTests
             return await client.SendAsync(request);
         }
 
-        // A non-member must not learn whether the stokvel exists.
-        var nonMemberResponse = await RequestPayout(nonMemberToken);
+        // A non-member must receive 404 with the caller's W3C trace ID.
+        const string traceId = "abcdef0123456789abcdef0123456789";
 
+        using var nonMemberRequest = new HttpRequestMessage(
+            HttpMethod.Post,
+            $"/api/stokvels/{stokvelId}/cycles/{cycleId}/payout");
+
+        // Authenticate as the non-member.
+        nonMemberRequest.Headers.Authorization =
+            new AuthenticationHeaderValue("Bearer", nonMemberToken);
+
+        // Supply a valid W3C traceparent header.
+        nonMemberRequest.Headers.TryAddWithoutValidation(
+            "traceparent",
+            $"00-{traceId}-0123456789abcdef-01");
+
+        using var nonMemberResponse =
+            await client.SendAsync(nonMemberRequest);
+
+        // Verify the authorization response.
         Assert.Equal(HttpStatusCode.NotFound, nonMemberResponse.StatusCode);
 
+        // Read the ProblemDetails response.
+        using var nonMemberJson = JsonDocument.Parse(
+            await nonMemberResponse.Content.ReadAsStringAsync());
+
+        // The response must preserve the incoming trace ID.
+        Assert.Equal(
+            traceId,
+            nonMemberJson.RootElement
+                .GetProperty("correlationId")
+                .GetString());
         // A Member belongs to the stokvel but cannot process payouts.
         var memberResponse = await RequestPayout(memberToken);
 
