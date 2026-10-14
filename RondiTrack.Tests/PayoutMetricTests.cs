@@ -62,7 +62,7 @@ public class PayoutMetricTests
 
         // Register a user.
         var registerResponse = await client.PostAsJsonAsync(
-            "/api/auth/register",
+            "/api/v1/auth/register",
             new
             {
                 id,
@@ -103,7 +103,7 @@ public class PayoutMetricTests
 
         // Log in.
         var loginResponse = await client.PostAsJsonAsync(
-            "/api/auth/login",
+            "/api/v1/auth/login",
             new { email, password });
 
         Assert.Equal(HttpStatusCode.OK, loginResponse.StatusCode);
@@ -118,7 +118,7 @@ public class PayoutMetricTests
         // Record the contribution required for payout.
         using var contributionRequest = new HttpRequestMessage(
             HttpMethod.Post,
-            $"/api/stokvels/{id}/members/{id}/contributions");
+            $"/api/v1/stokvels/{id}/members/{id}/contributions");
 
         contributionRequest.Headers.Authorization =
             new AuthenticationHeaderValue("Bearer", accessToken);
@@ -140,7 +140,7 @@ public class PayoutMetricTests
         // Process the payout.
         using var payoutRequest = new HttpRequestMessage(
             HttpMethod.Post,
-            $"/api/stokvels/{id}/cycles/{id}/payout");
+            $"/api/v1/stokvels/{id}/cycles/{id}/payout");
 
         payoutRequest.Headers.Authorization =
             new AuthenticationHeaderValue("Bearer", accessToken);

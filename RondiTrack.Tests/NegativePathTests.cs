@@ -23,7 +23,7 @@ public class NegativePathTests
         };
 
         var response = await client.PostAsJsonAsync(
-            "/api/users",
+            "/api/v1/users",
             request);
 
         Assert.Equal(
@@ -44,7 +44,7 @@ public class NegativePathTests
         var client = factory.CreateClient();
 
         var response = await client.GetAsync(
-            "/api/users/99999");
+            "/api/v1/users/99999");
 
         Assert.Equal(
             HttpStatusCode.NotFound,
@@ -73,7 +73,7 @@ public class NegativePathTests
         };
 
         var firstResponse = await client.PostAsJsonAsync(
-            "/api/users",
+            "/api/v1/users",
             user);
 
         Assert.Equal(
@@ -81,7 +81,7 @@ public class NegativePathTests
             firstResponse.StatusCode);
 
         var secondResponse = await client.PostAsJsonAsync(
-            "/api/users",
+            "/api/v1/users",
             user);
 
         Assert.Equal(

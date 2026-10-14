@@ -29,7 +29,7 @@ public class BusinessRuleIntegrationTests
 
         var firstResponse =
             await client.PostAsJsonAsync(
-                "/api/stokvels",
+                "/api/v1/stokvels",
                 stokvel);
 
         Assert.Equal(
@@ -38,7 +38,7 @@ public class BusinessRuleIntegrationTests
 
         var secondResponse =
             await client.PostAsJsonAsync(
-                "/api/stokvels",
+                "/api/v1/stokvels",
                 stokvel);
 
         Assert.Equal(
@@ -66,7 +66,7 @@ public class BusinessRuleIntegrationTests
 
         var firstResponse =
             await client.PostAsJsonAsync(
-                "/api/contribution-cycles",
+                "/api/v1/contributioncycles",
                 cycle);
 
         Assert.Equal(
@@ -75,7 +75,7 @@ public class BusinessRuleIntegrationTests
 
         var secondResponse =
             await client.PostAsJsonAsync(
-                "/api/contribution-cycles",
+                "/api/v1/contributioncycles",
                 cycle);
 
         Assert.Equal(
@@ -96,7 +96,7 @@ public class BusinessRuleIntegrationTests
         // User 1 is already a member of seeded stokvel 1.
         var response =
             await client.PostAsync(
-                "/api/stokvels/1/members/1",
+                "/api/v1/stokvels/1/members/1",
                 null);
 
         Assert.Equal(
@@ -125,7 +125,7 @@ public class BusinessRuleIntegrationTests
 
         var createUserResponse =
             await client.PostAsJsonAsync(
-                "/api/users",
+                "/api/v1/users",
                 user);
 
         Assert.Equal(
@@ -134,7 +134,7 @@ public class BusinessRuleIntegrationTests
 
         var response =
             await client.DeleteAsync(
-                "/api/stokvels/1/members/5003");
+                "/api/v1/stokvels/1/members/5003");
 
         Assert.Equal(
             HttpStatusCode.UnprocessableEntity,
@@ -152,7 +152,7 @@ public class BusinessRuleIntegrationTests
         var client = factory.CreateClient();
 
         await client.PostAsJsonAsync(
-            "/api/users",
+            "/api/v1/users",
             new
             {
                 id = 5004,
@@ -163,7 +163,7 @@ public class BusinessRuleIntegrationTests
             });
 
         await client.PostAsJsonAsync(
-            "/api/contribution-cycles",
+            "/api/v1/contributioncycles",
             new
             {
                 id = 5004,
@@ -175,7 +175,7 @@ public class BusinessRuleIntegrationTests
         using var request =
             new HttpRequestMessage(
                 HttpMethod.Post,
-                "/api/stokvels/1/members/5004/contributions");
+                "/api/v1/stokvels/1/members/5004/contributions");
 
         request.Headers.Add(
             "Idempotency-Key",
@@ -203,7 +203,7 @@ public class BusinessRuleIntegrationTests
         var client = factory.CreateClient();
 
         await client.PostAsJsonAsync(
-            "/api/stokvels",
+            "/api/v1/stokvels",
             new
             {
                 id = 5005,
@@ -212,7 +212,7 @@ public class BusinessRuleIntegrationTests
             });
 
         await client.PostAsJsonAsync(
-            "/api/contribution-cycles",
+            "/api/v1/contributioncycles",
             new
             {
                 id = 5005,
@@ -224,7 +224,7 @@ public class BusinessRuleIntegrationTests
         using var request =
             new HttpRequestMessage(
                 HttpMethod.Post,
-                "/api/stokvels/1/members/1/contributions");
+                "/api/v1/stokvels/1/members/1/contributions");
 
         request.Headers.Add(
             "Idempotency-Key",
@@ -252,7 +252,7 @@ public class BusinessRuleIntegrationTests
         var client = factory.CreateClient();
 
         await client.PostAsJsonAsync(
-            "/api/contribution-cycles",
+            "/api/v1/contributioncycles",
             new
             {
                 id = 5006,
@@ -264,7 +264,7 @@ public class BusinessRuleIntegrationTests
         using var firstRequest =
             new HttpRequestMessage(
                 HttpMethod.Post,
-                "/api/stokvels/1/members/1/contributions");
+                "/api/v1/stokvels/1/members/1/contributions");
 
         firstRequest.Headers.Add(
             "Idempotency-Key",
@@ -283,7 +283,7 @@ public class BusinessRuleIntegrationTests
         using var secondRequest =
             new HttpRequestMessage(
                 HttpMethod.Post,
-                "/api/stokvels/1/members/1/contributions");
+                "/api/v1/stokvels/1/members/1/contributions");
 
         secondRequest.Headers.Add(
             "Idempotency-Key",
@@ -312,7 +312,7 @@ public class BusinessRuleIntegrationTests
 
         // Create a contribution cycle.
         await client.PostAsJsonAsync(
-            "/api/contribution-cycles",
+            "/api/v1/contributioncycles",
             new
             {
                 id = 6001,
@@ -326,7 +326,7 @@ public class BusinessRuleIntegrationTests
         using var contributionRequest =
             new HttpRequestMessage(
                 HttpMethod.Post,
-                "/api/stokvels/1/members/1/contributions");
+                "/api/v1/stokvels/1/members/1/contributions");
 
         contributionRequest.Headers.Add(
             "Idempotency-Key",
@@ -345,7 +345,7 @@ public class BusinessRuleIntegrationTests
         // Process the payout.
         var payoutResponse =
             await client.PostAsync(
-                "/api/stokvels/1/cycles/6001/payout",
+                "/api/v1/stokvels/1/cycles/6001/payout",
                 null);
 
         Assert.Equal(
@@ -375,7 +375,7 @@ public class BusinessRuleIntegrationTests
 
         // Create a contribution cycle.
         await client.PostAsJsonAsync(
-            "/api/contribution-cycles",
+            "/api/v1/contributioncycles",
             new
             {
                 id = 6002,

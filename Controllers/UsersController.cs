@@ -4,11 +4,12 @@ using RondiTrack.Mappers;
 using RondiTrack.Repositories;
 using RondiTrack.Services;
 using RondiTrack.Exceptions;
+using RondiTrack.Constants;
 
 namespace RondiTrack.Controllers;
 
 [ApiController]
-[Route("api/users")]
+[Route(ApiRoutes.Prefix + "/users")]
 public class UsersController : ControllerBase
 {
     private readonly IRondiTrackRepository _repository;

@@ -27,7 +27,7 @@ public class EdgeCaseTests
 
         var createResponse =
             await client.PostAsJsonAsync(
-                "/api/stokvels",
+                "/api/v1/stokvels",
                 stokvel);
 
         Assert.Equal(
@@ -36,7 +36,7 @@ public class EdgeCaseTests
 
         var membersResponse =
             await client.GetAsync(
-                "/api/stokvels/6001/members");
+                "/api/v1/stokvels/6001/members");
 
         Assert.Equal(
             HttpStatusCode.OK,
@@ -75,7 +75,7 @@ public class EdgeCaseTests
 
         var response =
             await client.PostAsJsonAsync(
-                "/api/stokvels",
+                "/api/v1/stokvels",
                 stokvel);
 
         Assert.Equal(
@@ -107,7 +107,7 @@ public class EdgeCaseTests
 
         var response =
             await client.PostAsJsonAsync(
-                "/api/contribution-cycles",
+                "/api/v1/contributioncycles",
                 cycle);
 
         Assert.Equal(

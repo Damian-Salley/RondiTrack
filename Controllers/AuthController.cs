@@ -8,11 +8,13 @@ using RondiTrack.Repositories;
 using RondiTrack.Security;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using RondiTrack.Constants;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace RondiTrack.Controllers;
 
 [ApiController]
-[Route("api/auth")]
+[Route(ApiRoutes.Prefix + "/auth")]
 public class AuthController : ControllerBase
 {
     private readonly IRondiTrackRepository _repository;
@@ -90,8 +92,12 @@ public class AuthController : ControllerBase
         });
     }
 
+
+
+
     // Log in and issue access and refresh tokens.
     [AllowAnonymous]
+    [EnableRateLimiting("Login")]
     [HttpPost("login")]
     public async Task<IActionResult> Login(LoginRequest request)
     {
@@ -160,7 +166,7 @@ public class AuthController : ControllerBase
                 Secure = true,
                 SameSite = SameSiteMode.Strict,
                 Expires = storedToken.ExpiresAt,
-                Path = "/api/auth"
+                Path = ApiRoutes.AuthCookiePath
             });
 
         // Record a successful sign-in without recording tokens or email.
@@ -296,7 +302,7 @@ public class AuthController : ControllerBase
                 Secure = true,
                 SameSite = SameSiteMode.Strict,
                 Expires = replacementToken.ExpiresAt,
-                Path = "/api/auth"
+                Path = ApiRoutes.AuthCookiePath
             });
 
         // Return a new 15-minute access token.
@@ -344,7 +350,7 @@ public class AuthController : ControllerBase
             HttpOnly = true,
             Secure = true,
             SameSite = SameSiteMode.Strict,
-            Path = "/api/auth"
+            Path = ApiRoutes.AuthCookiePath
         });
 
         // Return 204 even if the user was already logged out.

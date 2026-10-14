@@ -10,6 +10,9 @@ using RondiTrack.Authorization;
 using RondiTrack.Data;
 using RondiTrack.HealthChecks;
 using RondiTrack.Filters;
+using System.Text.Json;
+
+
 
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -18,6 +21,7 @@ using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.AspNetCore.RateLimiting;
 
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
@@ -27,8 +31,34 @@ using OpenTelemetry.Logs;
 
 using System.Diagnostics;
 using System.Security.Claims;
+using System.Threading.RateLimiting;
+using System.IdentityModel.Tokens.Jwt;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Register the system clock for time-based calculations and testing.
+builder.Services.AddSingleton(TimeProvider.System);
+
+const string frontendCorsPolicy = "Frontend";
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy(frontendCorsPolicy, policy =>
+    {
+        var origins = builder.Configuration
+            .GetSection("Cors:AllowedOrigins")
+            .Get<string[]>() ?? [];
+
+        if (origins.Length > 0)
+        {
+            policy.WithOrigins(origins)
+                .WithMethods("GET", "POST", "PUT", "PATCH", "DELETE")
+                .WithHeaders("Content-Type", "Authorization", "Idempotency-Key")
+                .AllowCredentials()
+                .WithExposedHeaders("Retry-After", "Idempotency-Replayed");
+        }
+    });
+});
 
 // ============================================================
 // 1. JWT SIGNING KEY VALIDATION
@@ -178,12 +208,20 @@ builder.Services.AddHealthChecks()
 // 5. API CONFIGURATION
 // ============================================================
 
-// Register OpenAPI documentation and controllers.
+// Register OpenAPI document generation services.
 builder.Services.AddOpenApi();
+
+// Register controllers and configure strict JSON number handling.
 builder.Services.AddControllers(options =>
 {
     // Add correlation IDs to controller-generated errors.
     options.Filters.Add<CorrelationIdFilter>();
+})
+.AddJsonOptions(options =>
+{
+    // Reject numbers supplied as strings, such as "100" instead of 100.
+    options.JsonSerializerOptions.NumberHandling =
+        System.Text.Json.Serialization.JsonNumberHandling.Strict;
 });
 
 // ============================================================
@@ -360,11 +398,11 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
             "Request validation failed with correlation ID {CorrelationId}",
             correlationId);
 
-        // Collect validation errors.
+        // Collect validation errors using camelCase field names.
         var errors = context.ModelState
             .Where(x => x.Value?.Errors.Count > 0)
             .ToDictionary(
-                x => x.Key,
+                x => JsonNamingPolicy.CamelCase.ConvertName(x.Key),
                 x => x.Value!.Errors
                     .Select(e => e.ErrorMessage)
                     .ToArray());
@@ -394,6 +432,78 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
 // ============================================================
 // 11. BUILD APPLICATION
 // ============================================================
+
+// Rate limiting policies.
+const string loginRateLimit = "Login";
+const string financialRateLimit = "Financial";
+
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    options.OnRejected = async (context, cancellationToken) =>
+    {
+        var http = context.HttpContext;
+
+        http.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+
+        var retryAfter = 60;
+
+        if (context.Lease.TryGetMetadata(
+            MetadataName.RetryAfter, out var delay))
+        {
+            retryAfter = Math.Max(1, (int)Math.Ceiling(delay.TotalSeconds));
+        }
+
+        http.Response.Headers.RetryAfter = retryAfter.ToString();
+
+        await Results.Problem(
+            statusCode: 429,
+            title: "Too many requests",
+            detail: "Please retry after the rate limit resets.",
+            extensions: new Dictionary<string, object?>
+            {
+                ["correlationId"] =
+                    Activity.Current?.TraceId.ToString()
+                    ?? http.TraceIdentifier
+            }
+        ).ExecuteAsync(http);
+    };
+
+    // Limit login attempts by IP address.
+    options.AddPolicy(loginRateLimit, context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: context.Connection.RemoteIpAddress?.ToString()
+                ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = builder.Configuration.GetValue(
+                    "RateLimiting:Login:PermitLimit", 5),
+                Window = TimeSpan.FromSeconds(
+                    builder.Configuration.GetValue(
+                        "RateLimiting:Login:WindowSeconds", 60)),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }));
+
+    // Allow a burst of 20 financial operations per authenticated user.
+    options.AddPolicy(financialRateLimit, context =>
+        RateLimitPartition.GetTokenBucketLimiter(
+            partitionKey: context.User.FindFirstValue(
+                JwtRegisteredClaimNames.Sub) ?? "anonymous",
+            factory: _ => new TokenBucketRateLimiterOptions
+            {
+                TokenLimit = builder.Configuration.GetValue(
+                    "RateLimiting:Financial:TokenLimit", 20),
+                TokensPerPeriod = builder.Configuration.GetValue(
+                    "RateLimiting:Financial:TokensPerPeriod", 20),
+                ReplenishmentPeriod = TimeSpan.FromSeconds(
+                    builder.Configuration.GetValue(
+                        "RateLimiting:Financial:WindowSeconds", 60)),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }));
+});
 
 var app = builder.Build();
 
@@ -445,11 +555,19 @@ app.Use(async (context, next) =>
 // Redirect HTTP requests to HTTPS.
 app.UseHttpsRedirection();
 
+// Allow configured frontend origins before authentication.
+app.UseRouting();
+app.UseCors(frontendCorsPolicy);
+
+
 // Authenticate incoming requests.
 app.UseAuthentication();
 
 // Enforce authorization policies.
+app.UseRateLimiter();
+
 app.UseAuthorization();
+
 
 // Map API controllers.
 app.MapControllers();

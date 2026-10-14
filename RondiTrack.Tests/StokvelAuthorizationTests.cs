@@ -39,7 +39,7 @@ public class StokvelAuthorizationTests
         async Task Register(int userId, string email)
         {
             var response = await client.PostAsJsonAsync(
-                "/api/auth/register",
+                "/api/v1/auth/register",
                 new
                 {
                     id = userId,
@@ -95,7 +95,7 @@ public class StokvelAuthorizationTests
         async Task<string> Login(string email)
         {
             var response = await client.PostAsJsonAsync(
-                "/api/auth/login",
+                "/api/v1/auth/login",
                 new { email, password });
 
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -115,7 +115,7 @@ public class StokvelAuthorizationTests
         {
             using var request = new HttpRequestMessage(
                 HttpMethod.Post,
-                $"/api/stokvels/{stokvelId}/cycles/{cycleId}/payout");
+                $"/api/v1/stokvels/{stokvelId}/cycles/{cycleId}/payout");
 
             request.Headers.Authorization =
                 new AuthenticationHeaderValue("Bearer", token);
@@ -128,7 +128,7 @@ public class StokvelAuthorizationTests
 
         using var nonMemberRequest = new HttpRequestMessage(
             HttpMethod.Post,
-            $"/api/stokvels/{stokvelId}/cycles/{cycleId}/payout");
+            $"/api/v1/stokvels/{stokvelId}/cycles/{cycleId}/payout");
 
         // Authenticate as the non-member.
         nonMemberRequest.Headers.Authorization =
@@ -186,7 +186,7 @@ public class StokvelAuthorizationTests
 
         // Register the member who will make the requests.
         var registerResponse = await client.PostAsJsonAsync(
-            "/api/auth/register",
+            "/api/v1/auth/register",
             new
             {
                 id = memberId,
@@ -201,7 +201,7 @@ public class StokvelAuthorizationTests
 
         // Register another member.
         var otherRegisterResponse = await client.PostAsJsonAsync(
-            "/api/auth/register",
+            "/api/v1/auth/register",
             new
             {
                 id = otherMemberId,
@@ -248,7 +248,7 @@ public class StokvelAuthorizationTests
 
         // Log in as the regular Member.
         var loginResponse = await client.PostAsJsonAsync(
-            "/api/auth/login",
+            "/api/v1/auth/login",
             new { email, password });
 
         Assert.Equal(HttpStatusCode.OK, loginResponse.StatusCode);
@@ -267,7 +267,7 @@ public class StokvelAuthorizationTests
         {
             using var request = new HttpRequestMessage(
                 HttpMethod.Post,
-                $"/api/stokvels/{stokvelId}/members/{targetUserId}/contributions");
+                $"/api/v1/stokvels/{stokvelId}/members/{targetUserId}/contributions");
 
             request.Headers.Authorization =
                 new AuthenticationHeaderValue("Bearer", token);

@@ -46,6 +46,20 @@ public class PostgresApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             Convert.ToBase64String(
                 System.Security.Cryptography.RandomNumberGenerator.GetBytes(32)));
 
+        // Give ordinary integration tests sufficient request capacity.
+        // Dedicated rate-limiting tests can override these values.
+        builder.UseSetting(
+            "RateLimiting:Login:PermitLimit",
+            "1000");
+
+        builder.UseSetting(
+            "RateLimiting:Financial:TokenLimit",
+            "1000");
+
+        builder.UseSetting(
+            "RateLimiting:Financial:TokensPerPeriod",
+            "1000");
+
         builder.ConfigureLogging(logging =>
 {
     logging.AddProvider(CapturedLogs);

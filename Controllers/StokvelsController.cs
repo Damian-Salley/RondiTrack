@@ -10,12 +10,14 @@ using RondiTrack.Repositories;
 using RondiTrack.Services;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using RondiTrack.Constants;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace RondiTrack.Controllers;
 
 [ApiController]
 [Authorize]
-[Route("api/stokvels")]
+[Route(ApiRoutes.Prefix + "/stokvels")]
 public class StokvelsController : ControllerBase
 {
     private readonly IRondiTrackRepository _repository;
@@ -266,6 +268,7 @@ public class StokvelsController : ControllerBase
 
     // Members can record their own contributions.
     // Treasurer and Chairperson can record contributions for others.
+    [EnableRateLimiting("Financial")]
     [HttpPost("{stokvelId:int}/members/{userId:int}/contributions")]
     public async Task<ActionResult<ContributionResponse>> RecordContribution(
         int stokvelId,
@@ -327,6 +330,7 @@ public class StokvelsController : ControllerBase
     // =========================================================
 
     // Only Treasurer and Chairperson can process payouts.
+    [EnableRateLimiting("Financial")]
     [HttpPost("{stokvelId:int}/cycles/{contributionCycleId:int}/payout")]
     public async Task<ActionResult<Payout>> ProcessPayout(
         int stokvelId,

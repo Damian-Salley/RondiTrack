@@ -48,7 +48,7 @@ public class ObservabilityTests : IClassFixture<PostgresApiFactory>
 
         using var request = new HttpRequestMessage(
             HttpMethod.Get,
-            "/api/users");
+            "/api/v1/users");
 
         request.Headers.TryAddWithoutValidation(
             "traceparent",

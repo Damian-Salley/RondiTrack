@@ -6,12 +6,13 @@ using RondiTrack.Mappers;
 using RondiTrack.Repositories;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using RondiTrack.Constants;
 
 namespace RondiTrack.Controllers;
 
 [ApiController]
 [Authorize]
-[Route("api/contribution-cycles")]
+[Route(ApiRoutes.Prefix + "/contributioncycles")]
 public class ContributionCyclesController : ControllerBase
 {
     private readonly IRondiTrackRepository _repository;

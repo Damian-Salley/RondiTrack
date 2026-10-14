@@ -51,7 +51,7 @@ public class PopiaLoggingTests
         };
 
         using var registerResponse = await client.PostAsJsonAsync(
-            "/api/auth/register",
+            "/api/v1/auth/register",
             registration);
 
         Assert.Equal(HttpStatusCode.Created, registerResponse.StatusCode);
@@ -61,7 +61,7 @@ public class PopiaLoggingTests
 
         // Duplicate registration must return 409.
         using var duplicateResponse = await client.PostAsJsonAsync(
-            "/api/auth/register",
+            "/api/v1/auth/register",
             registration);
 
         Assert.Equal(HttpStatusCode.Conflict, duplicateResponse.StatusCode);
@@ -77,7 +77,7 @@ public class PopiaLoggingTests
 
         // Successful login.
         using var loginResponse = await client.PostAsJsonAsync(
-            "/api/auth/login",
+            "/api/v1/auth/login",
             new { email, password });
 
         Assert.Equal(HttpStatusCode.OK, loginResponse.StatusCode);
@@ -98,7 +98,7 @@ public class PopiaLoggingTests
 
         // Failed login.
         using var failedLoginResponse = await client.PostAsJsonAsync(
-            "/api/auth/login",
+            "/api/v1/auth/login",
             new { email, password = incorrectPassword });
 
         Assert.Equal(HttpStatusCode.Unauthorized, failedLoginResponse.StatusCode);
@@ -106,7 +106,7 @@ public class PopiaLoggingTests
         // Refresh the authentication session.
         using var refreshRequest = new HttpRequestMessage(
             HttpMethod.Post,
-            "/api/auth/refresh");
+            "/api/v1/auth/refresh");
 
         refreshRequest.Headers.Add(
             "Cookie",
@@ -159,7 +159,7 @@ public class PopiaLoggingTests
         // Record a contribution.
         using var contributionRequest = new HttpRequestMessage(
             HttpMethod.Post,
-            $"/api/stokvels/{id}/members/{id}/contributions");
+            $"/api/v1/stokvels/{id}/members/{id}/contributions");
 
         contributionRequest.Headers.Authorization =
             new AuthenticationHeaderValue("Bearer", refreshedAccessToken);

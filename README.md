@@ -1782,3 +1782,310 @@ Secrets must not be committed to source control.
 | Aspire screenshot | Captured |
 
 ---
+
+
+
+
+
+
+====================================================================================================================================
+
+
+
+
+
+---
+
+# Assignment 6.3 — Ready for Frontend
+
+This assignment prepares the RondiTrack API for integration with a frontend application.
+
+## 1. API Versioning
+
+All API endpoints use the `/api/v1` prefix.
+
+Examples:
+
+- `POST /api/v1/auth/register`
+- `POST /api/v1/auth/login`
+- `GET /api/v1/stokvels`
+- `GET /api/v1/me/home`
+
+API routes are centralized in `Constants/ApiRoutes.cs` to ensure consistency.
+
+## 2. CORS Configuration
+
+The API supports requests from the development frontend:
+
+`http://localhost:3000`
+
+The allowed origin is configured in `appsettings.Development.json`.
+
+The CORS policy:
+
+- Allows GET, POST, PUT, PATCH, and DELETE requests.
+- Allows the `Content-Type`, `Authorization`, and `Idempotency-Key` headers.
+- Supports credentialed requests.
+- Exposes the `Retry-After` and `Idempotency-Replayed` response headers.
+- Handles browser preflight requests.
+- Includes appropriate CORS headers on 401 and 403 responses.
+
+Production origins must be explicitly configured before deployment.
+
+### Authentication Cookies
+
+Refresh tokens are stored in HttpOnly, Secure cookies.
+
+The cookies use:
+
+- `HttpOnly = true`
+- `Secure = true`
+- `SameSite = Strict`
+- A restricted authentication cookie path
+
+The frontend must use `credentials: "include"` when making requests that require cookies.
+
+Because the refresh cookie uses `SameSite=Strict`, the frontend and API should be deployed on the same site.
+
+For production, a same-origin deployment or same-site deployment behind a reverse proxy is recommended.
+
+Cross-origin CORS support does not override browser SameSite cookie restrictions.
+
+## 3. Rate Limiting
+
+Rate limiting protects authentication and financial operations.
+
+### Login Rate Limiting
+
+Endpoint:
+
+`POST /api/v1/auth/login`
+
+The login endpoint uses a fixed-window rate limiter.
+
+Default configuration:
+
+- 5 requests per IP address
+- 60-second window
+- No request queue
+
+### Financial Rate Limiting
+
+Financial operations use a per-user token-bucket rate limiter.
+
+Default configuration:
+
+- 20 requests per authenticated user
+- 20-token burst capacity
+- 20 tokens replenished every 60 seconds
+- No request queue
+
+### Rate Limit Responses
+
+When a rate limit is exceeded, the API returns:
+
+`429 Too Many Requests`
+
+The response includes:
+
+- A `Retry-After` header.
+- A ProblemDetails JSON response.
+- A `correlationId` for tracing.
+
+Rate limiting runs before the controller action so rejected requests do not execute financial operations or consume idempotency keys.
+
+## 4. Frontend Home Endpoint
+
+Endpoint:
+
+`GET /api/v1/me/home`
+
+This endpoint returns a summary of the authenticated user's stokvel memberships.
+
+Each summary includes:
+
+- Stokvel ID
+- Stokvel name
+- The user's role
+- Current contribution cycle
+- Contribution cycle status
+- Amount paid during the current cycle
+- Amount still owed
+- Next payout date, when available
+
+### Privacy
+
+The endpoint uses the authenticated user's identity.
+
+Users only receive information about stokvels to which they belong.
+
+The endpoint does not expose other members' private financial information.
+
+### JavaScript Compatibility
+
+Monetary amounts are returned as decimal strings to avoid JavaScript floating-point precision problems.
+
+Dates are represented using UTC timestamps.
+
+Missing information is represented using nullable fields where appropriate.
+
+## 5. Error Handling
+
+The API uses ProblemDetails responses for errors.
+
+Error responses include appropriate HTTP status codes and a correlation ID for troubleshooting.
+
+Validation errors use camelCase property names to match frontend JSON conventions.
+
+Internal server errors do not expose sensitive implementation details.
+
+JSON number handling is configured to be strict.
+
+Numeric values remain numeric in the API contract unless intentionally represented as strings, such as monetary amounts.
+
+## 6. OpenAPI and TypeScript Client
+
+The API exposes an OpenAPI document during development.
+
+OpenAPI endpoint:
+
+`/openapi/v1.json`
+
+The generated OpenAPI specification is used to produce TypeScript types.
+
+The TypeScript client is located in:
+
+`clients/typescript/`
+
+### Dependencies
+
+The client uses pinned versions:
+
+- `openapi-typescript`: 7.10.1
+- `typescript`: 5.9.3
+
+### Generate TypeScript Types
+
+Start the API:
+
+```bash
+dotnet run
+```
+
+From the project root, download the OpenAPI document:
+
+```bash
+curl http://localhost:5274/openapi/v1.json -o openapi.json
+```
+
+The URL and port must match the address on which the API is running.
+
+Then generate the TypeScript definitions:
+
+```bash
+cd clients/typescript
+npx openapi-typescript ../../openapi.json -o src/api.d.ts
+```
+
+### TypeScript Type Checking
+
+Run:
+
+```bash
+npm run typecheck
+```
+
+This runs TypeScript with strict type checking without generating JavaScript output.
+
+### Typed Frontend Example
+
+The file:
+
+`clients/typescript/src/home.ts`
+
+contains a typed function for calling:
+
+`GET /api/v1/me/home`
+
+The function:
+
+- Uses types generated from OpenAPI.
+- Sends the JWT access token in the Authorization header.
+- Includes credentials for cookie-based authentication.
+- Returns a typed response.
+
+### Contract Change Verification
+
+A deliberate backend property rename was tested.
+
+The process was:
+
+1. Rename a property in the C# response DTO.
+2. Regenerate the OpenAPI specification.
+3. Regenerate the TypeScript definitions.
+4. Run TypeScript type checking.
+5. Observe the TypeScript compilation error.
+6. Restore the original property and regenerate the types.
+
+This demonstrates that frontend code can detect breaking API contract changes during compilation.
+
+## 7. Integration Testing
+
+Integration tests use:
+
+- xUnit
+- ASP.NET Core WebApplicationFactory
+- Testcontainers
+- PostgreSQL
+
+The test suite verifies API behavior using a real PostgreSQL test container.
+
+Assignment 6.3 includes CORS integration tests covering:
+
+- Successful browser preflight requests.
+- CORS headers on 401 Unauthorized responses.
+- CORS headers on 403 Forbidden responses.
+
+### Run Integration Tests
+
+From the project root:
+
+```bash
+dotnet test RondiTrack.Tests/RondiTrack.Tests.csproj
+```
+
+Latest verified result:
+
+```text
+Total: 40
+Passed: 40
+Failed: 0
+Skipped: 0
+```
+
+### Verify TypeScript
+
+```bash
+cd clients/typescript
+npm run typecheck
+```
+
+Latest verified result: Passed.
+
+## 8. Dependency Security
+
+NuGet dependencies were checked for known vulnerabilities.
+
+The Entity Framework Core Design package was updated to version `10.0.13`.
+
+Run the following command to check dependencies:
+
+```bash
+dotnet list RondiTrack.csproj package --vulnerable --include-transitive
+```
+
+Latest verified result:
+
+`No vulnerable packages reported by the configured NuGet sources.`
+
+---

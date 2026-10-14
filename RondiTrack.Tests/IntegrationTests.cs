@@ -30,14 +30,14 @@ public class IntegrationTests
         };
 
         var createResponse =
-            await client.PostAsJsonAsync("/api/users", user);
+            await client.PostAsJsonAsync("/api/v1/users", user);
 
         Assert.Equal(
             HttpStatusCode.Created,
             createResponse.StatusCode);
 
         var getResponse =
-            await client.GetAsync("/api/users/7001");
+            await client.GetAsync("/api/v1/users/7001");
 
         Assert.Equal(
             HttpStatusCode.OK,
@@ -68,14 +68,14 @@ public class IntegrationTests
         };
 
         var createResponse =
-            await client.PostAsJsonAsync("/api/stokvels", stokvel);
+            await client.PostAsJsonAsync("/api/v1/stokvels", stokvel);
 
         Assert.Equal(
             HttpStatusCode.Created,
             createResponse.StatusCode);
 
         var getResponse =
-            await client.GetAsync("/api/stokvels/7001");
+            await client.GetAsync("/api/v1/stokvels/7001");
 
         Assert.Equal(
             HttpStatusCode.OK,
@@ -108,7 +108,7 @@ public class IntegrationTests
 
         var createResponse =
             await client.PostAsJsonAsync(
-                "/api/contribution-cycles",
+                "/api/v1/contributioncycles",
                 cycle);
 
         Assert.Equal(
@@ -117,7 +117,7 @@ public class IntegrationTests
 
         var getResponse =
             await client.GetAsync(
-                "/api/contribution-cycles/7001");
+                "/api/v1/contributioncycles/7001");
 
         Assert.Equal(
             HttpStatusCode.OK,
@@ -151,7 +151,7 @@ public class IntegrationTests
 
         var cycleResponse =
             await client.PostAsJsonAsync(
-                "/api/contribution-cycles",
+                "/api/v1/contributioncycles",
                 cycle);
 
         Assert.Equal(
@@ -166,7 +166,7 @@ public class IntegrationTests
         using var firstRequest =
             new HttpRequestMessage(
                 HttpMethod.Post,
-                "/api/stokvels/1/members/1/contributions");
+                "/api/v1/stokvels/1/members/1/contributions");
 
         firstRequest.Headers.Add(
             "Idempotency-Key",
@@ -188,7 +188,7 @@ public class IntegrationTests
         using var secondRequest =
             new HttpRequestMessage(
                 HttpMethod.Post,
-                "/api/stokvels/1/members/1/contributions");
+                "/api/v1/stokvels/1/members/1/contributions");
 
         secondRequest.Headers.Add(
             "Idempotency-Key",
@@ -221,7 +221,7 @@ public class IntegrationTests
         var client = factory.CreateClient();
 
         await client.PostAsJsonAsync(
-            "/api/contribution-cycles",
+            "/api/v1/contributioncycles",
             new
             {
                 id = 8101,
@@ -231,7 +231,7 @@ public class IntegrationTests
             });
 
         await client.PostAsJsonAsync(
-            "/api/contribution-cycles",
+            "/api/v1/contributioncycles",
             new
             {
                 id = 8102,
@@ -243,7 +243,7 @@ public class IntegrationTests
         using var firstRequest =
             new HttpRequestMessage(
                 HttpMethod.Post,
-                "/api/stokvels/1/members/1/contributions");
+                "/api/v1/stokvels/1/members/1/contributions");
 
         firstRequest.Headers.Add(
             "Idempotency-Key",
@@ -262,7 +262,7 @@ public class IntegrationTests
         using var secondRequest =
             new HttpRequestMessage(
                 HttpMethod.Post,
-                "/api/stokvels/1/members/1/contributions");
+                "/api/v1/stokvels/1/members/1/contributions");
 
         secondRequest.Headers.Add(
             "Idempotency-Key",

@@ -19,7 +19,7 @@ public class AuthIntegrationTests
     public async Task ProtectedEndpoint_WithoutToken_Returns401ProblemDetails()
     {
         // Act
-        var response = await _client.GetAsync("/api/stokvels");
+        var response = await _client.GetAsync("/api/v1/stokvels");
 
         // Assert
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
@@ -36,7 +36,7 @@ public class AuthIntegrationTests
         var email = $"auth-{Guid.NewGuid():N}@example.com";
 
         var registerResponse = await _client.PostAsJsonAsync(
-            "/api/auth/register",
+            "/api/v1/auth/register",
             new
             {
                 id = Random.Shared.Next(100000, 2000000000),
@@ -51,7 +51,7 @@ public class AuthIntegrationTests
 
         // Act
         var wrongPassword = await _client.PostAsJsonAsync(
-            "/api/auth/login",
+            "/api/v1/auth/login",
             new
             {
                 email,
@@ -59,7 +59,7 @@ public class AuthIntegrationTests
             });
 
         var unknownEmail = await _client.PostAsJsonAsync(
-            "/api/auth/login",
+            "/api/v1/auth/login",
             new
             {
                 email = $"unknown-{Guid.NewGuid():N}@example.com",
@@ -93,7 +93,7 @@ public class AuthIntegrationTests
         var password = "CorrectPassword123!";
 
         var register = await client.PostAsJsonAsync(
-            "/api/auth/register",
+            "/api/v1/auth/register",
             new
             {
                 id = Random.Shared.Next(100000, 2000000000),
@@ -107,7 +107,7 @@ public class AuthIntegrationTests
         Assert.Equal(HttpStatusCode.Created, register.StatusCode);
 
         var login = await client.PostAsJsonAsync(
-            "/api/auth/login",
+            "/api/v1/auth/login",
             new { email, password });
 
         Assert.Equal(HttpStatusCode.OK, login.StatusCode);
@@ -118,7 +118,7 @@ public class AuthIntegrationTests
 
         using var request = new HttpRequestMessage(
             HttpMethod.Post,
-            "/api/auth/refresh");
+            "/api/v1/auth/refresh");
 
         request.Headers.Add("Cookie", originalCookie);
 
@@ -141,7 +141,7 @@ public class AuthIntegrationTests
         var password = "CorrectPassword123!";
 
         var register = await client.PostAsJsonAsync(
-            "/api/auth/register",
+            "/api/v1/auth/register",
             new
             {
                 id = Random.Shared.Next(100000, 2000000000),
@@ -155,7 +155,7 @@ public class AuthIntegrationTests
         Assert.Equal(HttpStatusCode.Created, register.StatusCode);
 
         var login = await client.PostAsJsonAsync(
-            "/api/auth/login",
+            "/api/v1/auth/login",
             new { email, password });
 
         Assert.Equal(HttpStatusCode.OK, login.StatusCode);
@@ -168,7 +168,7 @@ public class AuthIntegrationTests
         {
             using var request = new HttpRequestMessage(
                 HttpMethod.Post,
-                "/api/auth/refresh");
+                "/api/v1/auth/refresh");
 
             request.Headers.Add("Cookie", cookie);
 
@@ -203,7 +203,7 @@ public class AuthIntegrationTests
         var password = "CorrectPassword123!";
 
         var register = await client.PostAsJsonAsync(
-            "/api/auth/register",
+            "/api/v1/auth/register",
             new
             {
                 id = Random.Shared.Next(100000, 2000000000),
@@ -217,7 +217,7 @@ public class AuthIntegrationTests
         Assert.Equal(HttpStatusCode.Created, register.StatusCode);
 
         var login = await client.PostAsJsonAsync(
-            "/api/auth/login",
+            "/api/v1/auth/login",
             new { email, password });
 
         Assert.Equal(HttpStatusCode.OK, login.StatusCode);
@@ -228,7 +228,7 @@ public class AuthIntegrationTests
 
         using var logoutRequest = new HttpRequestMessage(
             HttpMethod.Post,
-            "/api/auth/logout");
+            "/api/v1/auth/logout");
 
         logoutRequest.Headers.Add("Cookie", cookie);
 
@@ -239,7 +239,7 @@ public class AuthIntegrationTests
         // The original token must no longer work.
         using var refreshRequest = new HttpRequestMessage(
             HttpMethod.Post,
-            "/api/auth/refresh");
+            "/api/v1/auth/refresh");
 
         refreshRequest.Headers.Add("Cookie", cookie);
 

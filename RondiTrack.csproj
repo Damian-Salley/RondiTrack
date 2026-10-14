@@ -1,48 +1,77 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
+
+
+  <!-- Configure the ASP.NET Core application. -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+
+    <!-- Identify the user-secrets configuration for development. -->
     <UserSecretsId>c16d6931-b886-4f90-9200-831d1c0c4550</UserSecretsId>
   </PropertyGroup>
 
+  <!-- NuGet packages required by the API. -->
   <ItemGroup>
+
+    <!-- Request validation. -->
     <PackageReference Include="FluentValidation.AspNetCore" Version="11.3.1" />
+
+    <!-- JWT authentication. -->
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.0" />
+
+    <!-- OpenAPI documentation and TypeScript contract generation. -->
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.12" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.0">
+
+    <!-- Entity Framework Core design-time tools. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.13">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
+
+    <!-- PostgreSQL database support. -->
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0" />
+
+    <!-- Application monitoring and telemetry. -->
     <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.19.1" />
     <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.19.1" />
     <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.19.0" />
+
+    <!-- Interactive API documentation. -->
     <PackageReference Include="Scalar.AspNetCore" Version="2.17.10" />
+
   </ItemGroup>
 
+  <!-- Reference the Domain and Infrastructure projects. -->
   <ItemGroup>
     <ProjectReference Include="RondiTrack.Domain\RondiTrack.Domain.csproj" />
     <ProjectReference Include="RondiTrack.Infrastructure\RondiTrack.Infrastructure.csproj" />
   </ItemGroup>
 
+  <!-- Exclude files belonging to separate .NET projects. -->
   <ItemGroup>
+
+    <!-- Prevent the API from compiling C# files from other projects. -->
     <Compile Remove="RondiTrack.Tests/**/*.cs" />
     <Compile Remove="RondiTrack.Domain/**/*.cs" />
     <Compile Remove="RondiTrack.Infrastructure/**/*.cs" />
 
+    <!-- Prevent files from other projects from becoming API content. -->
     <Content Remove="RondiTrack.Tests/**" />
     <Content Remove="RondiTrack.Domain/**" />
     <Content Remove="RondiTrack.Infrastructure/**" />
 
+    <!-- Exclude miscellaneous files belonging to other projects. -->
     <None Remove="RondiTrack.Tests/**" />
     <None Remove="RondiTrack.Domain/**" />
     <None Remove="RondiTrack.Infrastructure/**" />
 
+    <!-- Exclude embedded resources belonging to other projects. -->
     <EmbeddedResource Remove="RondiTrack.Tests/**" />
     <EmbeddedResource Remove="RondiTrack.Domain/**" />
     <EmbeddedResource Remove="RondiTrack.Infrastructure/**" />
+
   </ItemGroup>
 
 </Project>
