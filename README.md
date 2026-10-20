@@ -2215,3 +2215,14 @@ https://github.com/Damian-Salley/RondiTrack/actions/runs/39504734887
 The earlier failure occurred before the Dockerfile and other Assignment 6.4 changes were pushed.
 
 **Note:** The earlier failed Docker build is not evidence of a failed pull-request test. Separate evidence is required if the assignment specifically requests a red PR test run.
+
+**Failed pull-request CI run (intentional test failure):**
+
+https://github.com/Damian-Salley/RondiTrack/actions/runs/39506686542
+https://github.com/Damian-Salley/RondiTrack/actions/runs/39506686542?utm_source=chatgpt.com
+
+This run demonstrates that when an automated test fails, the
+Build and Test job fails and the Docker image build is skipped.
+
+
+
