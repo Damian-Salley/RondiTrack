@@ -44,7 +44,8 @@ public class BusinessRuleTests
     public async Task RecordContribution_WhenContributionAlreadyExists_ThrowsBusinessRuleException()
     {
         var repository = new InMemoryRondiTrackRepository();
-        var idempotencyStore = new InMemoryIdempotencyStore();
+        // Use the system clock for idempotency record expiration.
+        var idempotencyStore = new InMemoryIdempotencyStore(TimeProvider.System);
 
         var service = new RondiTrackService(
             repository,
@@ -76,7 +77,8 @@ public class BusinessRuleTests
     public async Task RecordContribution_SameIdempotencyKeyAndPayload_ReturnsOriginalContribution()
     {
         var repository = new InMemoryRondiTrackRepository();
-        var idempotencyStore = new InMemoryIdempotencyStore();
+        // Use the system clock for idempotency record expiration.
+        var idempotencyStore = new InMemoryIdempotencyStore(TimeProvider.System);
 
         var service = new RondiTrackService(
             repository,
@@ -109,7 +111,8 @@ public class BusinessRuleTests
     public async Task RecordContribution_SameIdempotencyKeyDifferentPayload_ThrowsIdempotencyConflictException()
     {
         var repository = new InMemoryRondiTrackRepository();
-        var idempotencyStore = new InMemoryIdempotencyStore();
+        // Use the system clock for idempotency record expiration.
+        var idempotencyStore = new InMemoryIdempotencyStore(TimeProvider.System);
 
         var service = new RondiTrackService(
             repository,

@@ -2,17 +2,25 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Trace;
+using RondiTrack.BackgroundServices;
 using RondiTrack.Data;
 using Testcontainers.PostgreSql;
-using Microsoft.Extensions.Logging;
-using OpenTelemetry.Trace;
-using OpenTelemetry.Metrics;
 
 namespace RondiTrack.Tests.TestSupport;
 
+// Creates an isolated ASP.NET Core application and PostgreSQL database
+// for integration tests.
 public class PostgresApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
+    // Captures application logs so tests can inspect them.
     public CapturedLoggerProvider CapturedLogs { get; } = new();
+
+    // Each factory uses its own PostgreSQL Docker container.
     private readonly PostgreSqlContainer _container =
         new PostgreSqlBuilder("postgres:17")
             .WithDatabase("ronditrack_test")
@@ -22,32 +30,34 @@ public class PostgresApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 
     public async Task InitializeAsync()
     {
+        // Start the isolated PostgreSQL database.
         await _container.StartAsync();
 
+        // Accessing Services starts the test application.
+        // The background services have been disabled in ConfigureWebHost.
         using var scope = Services.CreateScope();
 
         var db = scope.ServiceProvider
             .GetRequiredService<RondiTrackDbContext>();
 
+        // Create all database tables before integration tests execute.
         await db.Database.MigrateAsync();
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        // Use the PostgreSQL Testcontainer instead of the development database.
+        // Connect to the isolated PostgreSQL Testcontainer.
         builder.UseSetting(
             "ConnectionStrings:RondiTrack",
             _container.GetConnectionString());
 
-        // Generate a separate JWT signing key for each test factory.
-        // No real signing secrets are stored in the test project.
+        // Generate a unique JWT signing key for the test application.
         builder.UseSetting(
             "Jwt:Key",
             Convert.ToBase64String(
                 System.Security.Cryptography.RandomNumberGenerator.GetBytes(32)));
 
-        // Give ordinary integration tests sufficient request capacity.
-        // Dedicated rate-limiting tests can override these values.
+        // Allow sufficient requests for normal integration tests.
         builder.UseSetting(
             "RateLimiting:Login:PermitLimit",
             "1000");
@@ -60,15 +70,45 @@ public class PostgresApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             "RateLimiting:Financial:TokensPerPeriod",
             "1000");
 
+        // Customize the application's services for integration testing.
+        builder.ConfigureServices(services =>
+        {
+            // Disable automatic cycle closing in ordinary API tests.
+            // We will test cycle closing separately under controlled conditions.
+            services.RemoveAll<MonthlyCycleClosingService>();
+
+            // Disable automatic housekeeping in ordinary API tests.
+            // This prevents cleanup from running before migrations finish.
+            services.RemoveAll<HousekeepingService>();
+
+            // Remove hosted-service registrations by their implementation type.
+            // AddHostedService<T>() registers services as IHostedService,
+            // so RemoveAll<T>() alone would not remove those registrations.
+            var backgroundServiceRegistrations = services
+                .Where(descriptor =>
+                    descriptor.ServiceType == typeof(IHostedService) &&
+                    (descriptor.ImplementationType ==
+                        typeof(MonthlyCycleClosingService) ||
+                     descriptor.ImplementationType ==
+                        typeof(HousekeepingService)))
+                .ToList();
+
+            foreach (var registration in backgroundServiceRegistrations)
+            {
+                services.Remove(registration);
+            }
+        });
+
+        // Capture application logs during integration tests.
         builder.ConfigureLogging(logging =>
-{
-    logging.AddProvider(CapturedLogs);
-});
+        {
+            logging.AddProvider(CapturedLogs);
+        });
     }
 
     public new async Task DisposeAsync()
     {
-        // Export pending traces and metrics before shutting down.
+        // Export pending telemetry before stopping the application.
         using (var scope = Services.CreateScope())
         {
             var tracerProvider = scope.ServiceProvider
@@ -77,7 +117,10 @@ public class PostgresApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             tracerProvider.ForceFlush();
         }
 
+        // Dispose of the test application.
         await base.DisposeAsync();
+
+        // Remove the isolated PostgreSQL container.
         await _container.DisposeAsync();
     }
 }

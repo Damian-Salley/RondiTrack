@@ -15,6 +15,9 @@ public class RondiTrackDbContext : DbContext
     public DbSet<StokvelMember> StokvelMembers => Set<StokvelMember>();
     public DbSet<ContributionCycle> ContributionCycles => Set<ContributionCycle>();
     public DbSet<Contribution> Contributions => Set<Contribution>();
+
+    // Stores the outstanding contribution amounts for each member and cycle.
+    public DbSet<CycleArrears> CycleArrears => Set<CycleArrears>();
     public DbSet<Payout> Payouts => Set<Payout>();
 
     // Stores refresh tokens for authenticated users.
@@ -109,7 +112,38 @@ public class RondiTrackDbContext : DbContext
             .Property(token => token.TokenHash)
             .IsRequired();
 
+            
+        // Configure how member arrears are stored in the database.
+        modelBuilder.Entity<CycleArrears>(entity =>
+        {
+            // Every arrears record has its own primary key.
+            entity.HasKey(a => a.Id);
+
+            // Prevent duplicate arrears records for the same member and cycle.
+            entity.HasIndex(a => new
+            {
+                a.ContributionCycleId,
+                a.UserId
+            }).IsUnique();
+
+            // Every arrears record must contain an amount in cents.
+            entity.Property(a => a.AmountCents)
+                .IsRequired();
+
+            // Link each arrears record to its contribution cycle.
+            entity.HasOne<ContributionCycle>()
+                .WithMany()
+                .HasForeignKey(a => a.ContributionCycleId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Link each arrears record to the member who owes the money.
+            entity.HasOne<User>()
+                .WithMany()
+                .HasForeignKey(a => a.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
     }
+
 
 
 }

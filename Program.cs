@@ -11,6 +11,8 @@ using RondiTrack.Data;
 using RondiTrack.HealthChecks;
 using RondiTrack.Filters;
 using System.Text.Json;
+// Import the background service responsible for monthly cycle closing.
+using RondiTrack.BackgroundServices;
 
 
 
@@ -36,8 +38,14 @@ using System.IdentityModel.Tokens.Jwt;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Register the system clock for time-based calculations and testing.
+// Use the system clock for time-dependent background operations.
 builder.Services.AddSingleton(TimeProvider.System);
+
+// Automatically close expired monthly contribution cycles.
+builder.Services.AddHostedService<MonthlyCycleClosingService>();
+
+// Automatically clean up expired refresh tokens and idempotency records.
+builder.Services.AddHostedService<HousekeepingService>();
 
 const string frontendCorsPolicy = "Frontend";
 

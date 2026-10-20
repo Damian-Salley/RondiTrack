@@ -1,0 +1,12 @@
+**/bin/
+**/obj/
+.git/
+.vs/
+.vscode/
+**/TestResults/
+**/test-results/
+**/node_modules/
+.env
+.env.*
+!.env.example
+RondiTrack.Tests/

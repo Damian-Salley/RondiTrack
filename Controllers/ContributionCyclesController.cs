@@ -18,12 +18,18 @@ public class ContributionCyclesController : ControllerBase
     private readonly IRondiTrackRepository _repository;
     private readonly IAuthorizationService _authorization;
 
+    // Provides the current time for creating contribution cycles.
+    private readonly TimeProvider _timeProvider;
+
+    // Constructor: inject the repository, authorization service, and clock.
     public ContributionCyclesController(
         IRondiTrackRepository repository,
-        IAuthorizationService authorization)
+        IAuthorizationService authorization,
+        TimeProvider timeProvider)
     {
         _repository = repository;
         _authorization = authorization;
+        _timeProvider = timeProvider;
     }
 
     // Get the authenticated user's ID.
@@ -133,7 +139,12 @@ public class ContributionCyclesController : ControllerBase
                 $"A contribution cycle with ID {request.Id} already exists.");
         }
 
-        var cycle = ContributionCycleMapper.ToDomain(request);
+        // Capture the stokvel's current per-member contribution amount.
+        // This value will remain attached to the cycle even if the stokvel changes it.
+        var cycle = ContributionCycleMapper.ToDomain(
+            request,
+            _timeProvider,
+            stokvel.ContributionAmount);
 
         await _repository.AddContributionCycleAsync(cycle);
 
