@@ -1,0 +1,59 @@
+# Assignment 6.4 - Continuous Integration
+# Runs automated tests before allowing the Docker image to build.
+
+name: RondiTrack CI
+
+on:
+  push:
+    branches:
+      - main
+      - feature/assignment-6.4
+
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+
+    steps:
+      # Download the repository source code.
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Install the .NET 10 SDK.
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      # Restore NuGet dependencies.
+      - name: Restore dependencies
+        run: dotnet restore RondiTrack.Tests/RondiTrack.Tests.csproj
+
+      # Build the application and test projects.
+      - name: Build
+        run: dotnet build RondiTrack.Tests/RondiTrack.Tests.csproj --no-restore --configuration Release
+
+      # Run the automated tests.
+      # GitHub-hosted Ubuntu runners support Docker for Testcontainers.
+      - name: Run tests
+        run: dotnet test RondiTrack.Tests/RondiTrack.Tests.csproj --no-build --configuration Release --verbosity normal
+
+  docker:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+
+    # Docker image building cannot begin unless the test job succeeds.
+    needs: test
+
+    steps:
+      # Download the repository source code.
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Build the production Docker image.
+      - name: Build Docker image
+        run: docker build -t ronditrack:ci .
