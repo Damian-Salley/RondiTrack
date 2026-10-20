@@ -2089,3 +2089,129 @@ Latest verified result:
 `No vulnerable packages reported by the configured NuGet sources.`
 
 ---
+
+
+
+
+
+==================================================================================================================================
+
+
+
+
+
+---
+
+## Assignment 6.4 — Docker, Background Services and CI
+
+### Docker Setup
+
+RondiTrack runs using Docker Compose with two services:
+
+- **API:** ASP.NET Core (.NET 10), running on port 8080.
+- **Database:** PostgreSQL 17, accessible only within the Docker network.
+
+The API uses a multi-stage Dockerfile and runs as a non-root user.
+
+To configure the application:
+
+```bash
+cp .env.example .env
+```
+
+Update `.env` with the required database credentials and application secrets.
+
+Start the application:
+
+```bash
+docker compose up -d --build
+```
+
+Check the containers:
+
+```bash
+docker compose ps
+```
+
+Stop the application:
+
+```bash
+docker compose down
+```
+
+The API documentation is available at:
+
+`http://localhost:8080/scalar/v1`
+
+**Security:** The `.env` file must not be committed to Git. Only `.env.example` should be tracked.
+
+### Monthly Contribution Cycle Closing
+
+RondiTrack includes a background service that checks for expired contribution cycles.
+
+The service:
+
+- Uses the `Africa/Johannesburg` timezone to determine monthly cycle deadlines.
+- Checks for expired cycles when the application starts and periodically afterward.
+- Closes expired contribution cycles automatically.
+- Calculates outstanding contributions for each stokvel member.
+- Stores arrears as integer cents to avoid floating-point precision issues.
+- Uses PostgreSQL transactions, advisory locking and unique constraints to prevent duplicate arrears during concurrent closing attempts.
+- Processes previously expired cycles after application downtime.
+
+### Housekeeping
+
+A separate background service periodically removes:
+
+- Expired refresh tokens from PostgreSQL.
+- Expired records from the in-memory idempotency store.
+
+Both background services use dependency injection and `TimeProvider`.
+
+### Automated Testing
+
+Integration tests use PostgreSQL Testcontainers.
+
+The monthly cycle-closing tests verify:
+
+- Expired cycles close correctly.
+- Arrears are calculated correctly.
+- Repeated execution does not duplicate arrears.
+- Multiple expired cycles are processed.
+- Concurrent closing attempts do not duplicate records.
+- Future cycles remain active.
+
+Run the tests locally:
+
+```bash
+dotnet test RondiTrack.Tests/RondiTrack.Tests.csproj
+```
+
+Docker Desktop must be running for tests that use PostgreSQL Testcontainers.
+
+### GitHub Actions CI
+
+The workflow is defined in `.github/workflows/ci.yml`.
+
+It automatically:
+
+1. Restores dependencies.
+2. Builds the .NET application and test projects.
+3. Runs automated tests.
+4. Builds the Docker image only after the tests pass.
+
+A failed test prevents the Docker build job from running.
+
+### CI Evidence
+
+Successful CI run:
+
+https://github.com/Damian-Salley/RondiTrack/actions/runs/39505131056
+
+Earlier failed Docker build:
+
+https://github.com/Damian-Salley/RondiTrack/actions/runs/39504734887
+
+The earlier failure occurred before the Dockerfile and other Assignment 6.4 changes were pushed.
+
+**Note:** The earlier failed Docker build is not evidence of a failed pull-request test. Separate evidence is required if the assignment specifically requests a red PR test run.
