@@ -17,7 +17,7 @@ namespace RondiTrack.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.0")
+                .HasAnnotation("ProductVersion", "10.0.13")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -53,8 +53,17 @@ namespace RondiTrack.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<DateTime?>("ClosedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("EndsAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<int>("Number")
                         .HasColumnType("integer");
+
+                    b.Property<decimal>("RequiredContributionAmount")
+                        .HasColumnType("numeric");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -71,6 +80,33 @@ namespace RondiTrack.Migrations
                     b.HasIndex("StokvelId");
 
                     b.ToTable("ContributionCycles");
+                });
+
+            modelBuilder.Entity("RondiTrack.Models.CycleArrears", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<long>("AmountCents")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("ContributionCycleId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("ContributionCycleId", "UserId")
+                        .IsUnique();
+
+                    b.ToTable("CycleArrears");
                 });
 
             modelBuilder.Entity("RondiTrack.Models.Payout", b =>
@@ -271,6 +307,21 @@ namespace RondiTrack.Migrations
                         .IsRequired();
 
                     b.Navigation("Stokvel");
+                });
+
+            modelBuilder.Entity("RondiTrack.Models.CycleArrears", b =>
+                {
+                    b.HasOne("RondiTrack.Models.ContributionCycle", null)
+                        .WithMany()
+                        .HasForeignKey("ContributionCycleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("RondiTrack.Models.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("RondiTrack.Models.Payout", b =>
