@@ -16,15 +16,25 @@ namespace RondiTrack.Services;
 public class RondiTrackService : IRondiTrackService
 {
 
+    // Dependencies used for database operations, idempotency,
+    // and obtaining the current time.
     private readonly IRondiTrackRepository _repository;
     private readonly IIdempotencyStore _idempotencyStore;
+    private readonly TimeProvider _timeProvider;
 
+    // The optional TimeProvider preserves compatibility with existing
+    // tests that construct RondiTrackService using two arguments.
     public RondiTrackService(
-    IRondiTrackRepository repository,
-    IIdempotencyStore idempotencyStore)
+        IRondiTrackRepository repository,
+        IIdempotencyStore idempotencyStore,
+        TimeProvider? timeProvider = null)
     {
         _repository = repository;
         _idempotencyStore = idempotencyStore;
+
+        // Use the supplied provider when available.
+        // Otherwise, fall back to the system clock.
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
 
@@ -135,11 +145,17 @@ public class RondiTrackService : IRondiTrackService
                 "A contribution has already been recorded for this member and cycle.");
         }
 
+        // Obtain the payment timestamp from the injected clock.
+        // UTC timestamps ensure consistent storage and API responses.
+        var paidAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
+
+        // Create the contribution with its actual payment timestamp.
         var contribution = new Contribution(
             userId,
             stokvelId,
             cycle,
-            stokvel.ContributionAmount);
+            stokvel.ContributionAmount,
+            paidAtUtc);
 
         await _repository.AddContributionAsync(contribution);
 

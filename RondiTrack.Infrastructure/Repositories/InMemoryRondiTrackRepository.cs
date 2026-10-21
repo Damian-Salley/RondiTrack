@@ -299,6 +299,10 @@ public class InMemoryRondiTrackRepository : IRondiTrackRepository
                         UserId = contribution.UserId,
                         StokvelId = contribution.StokvelId,
                         Cycle = contribution.Cycle,
+                        // Find the display number of the associated contribution cycle.
+                        CycleNumber = _contributionCycles
+    .First(cycle => cycle.Id == contribution.Cycle)
+    .Number,
                         ContributionAmount =
                             contribution.ContributionAmount,
                         MemberName =
@@ -439,6 +443,10 @@ public class InMemoryRondiTrackRepository : IRondiTrackRepository
                         UserId = contribution.UserId,
                         StokvelId = contribution.StokvelId,
                         Cycle = contribution.Cycle,
+                        // Find the display number of the associated contribution cycle.
+                        CycleNumber = _contributionCycles
+    .First(cycle => cycle.Id == contribution.Cycle)
+    .Number,
                         ContributionAmount =
                             contribution.ContributionAmount,
                         MemberName =

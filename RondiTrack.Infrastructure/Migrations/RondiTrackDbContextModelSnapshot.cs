@@ -36,13 +36,24 @@ namespace RondiTrack.Migrations
                     b.Property<decimal>("ContributionAmount")
                         .HasColumnType("numeric");
 
+                    b.Property<DateTime?>("PaidAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
                     b.HasKey("StokvelId", "UserId", "Cycle");
 
                     b.HasIndex("Cycle");
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("Contributions");
+                    b.ToTable("Contributions", t =>
+                        {
+                            t.HasCheckConstraint("CK_Contributions_Status", "\"Status\" IN ('Pending', 'Paid', 'Confirmed')");
+                        });
                 });
 
             modelBuilder.Entity("RondiTrack.Models.ContributionCycle", b =>

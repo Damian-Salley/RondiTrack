@@ -30,7 +30,7 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using OpenTelemetry.Logs;
-
+using RondiTrack.Data.Seeding;
 using System.Diagnostics;
 using System.Security.Claims;
 using System.Threading.RateLimiting;
@@ -628,6 +628,53 @@ app.MapHealthChecks(
 // 15. START APPLICATION
 // ============================================================
 
+// Seed demonstration records only in the Development environment.
+// Only seed demonstration data when explicitly enabled.
+// Never run this in Production.
+// Development-only demonstration data for Assignment 7.1.
+if (app.Environment.IsDevelopment() &&
+    app.Configuration.GetValue<bool>("SeedDemoData"))
+{
+    using var scope = app.Services.CreateScope();
+
+    var db = scope.ServiceProvider
+        .GetRequiredService<RondiTrackDbContext>();
+
+    // Insert demonstration records only if they do not already exist.
+    await DevelopmentDataSeeder.SeedAsync(db);
+
+    // Read the demo password from configuration rather than source code.
+    var demoPassword = app.Configuration["DemoUserPassword"];
+
+    if (!string.IsNullOrWhiteSpace(demoPassword))
+    {
+        if (demoPassword.Length < 12)
+        {
+            throw new InvalidOperationException(
+                "DemoUserPassword must contain at least 12 characters.");
+        }
+
+        // Find the existing demonstration user.
+        var demoUser = await db.Users.FirstOrDefaultAsync(
+            user => user.NormalizedEmail ==
+                "ASSIGNMENT71-DEMO@RONDITRACK.EXAMPLE");
+
+        if (demoUser is not null &&
+            string.IsNullOrWhiteSpace(demoUser.PasswordHash))
+        {
+            // Use the same password-hashing mechanism as AuthController.
+            var passwordHasher =
+                new Microsoft.AspNetCore.Identity.PasswordHasher<RondiTrack.Models.User>();
+
+            demoUser.SetPasswordHash(
+                passwordHasher.HashPassword(demoUser, demoPassword));
+
+            await db.SaveChangesAsync();
+        }
+    }
+}
+
+// Start the ASP.NET Core application.
 app.Run();
 
 // Required for integration tests.

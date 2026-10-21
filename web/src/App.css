@@ -1,0 +1,143 @@
+/* Main dashboard layout */
+.dashboard {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 48px 24px;
+}
+
+/* Dashboard heading */
+.dashboard-header {
+  margin-bottom: 48px;
+}
+
+.dashboard-header h1 {
+  font-size: 2.5rem;
+  margin: 8px 0;
+  color: #172554;
+}
+
+.dashboard-header p {
+  color: #64748b;
+}
+
+.eyebrow {
+  color: #2563eb !important;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+/* Dashboard sections */
+.dashboard section {
+  margin-bottom: 48px;
+}
+
+.dashboard section > h2 {
+  margin-bottom: 20px;
+  color: #1e293b;
+}
+
+/* Responsive card layout */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+/* Shared card appearance */
+.stokvel-card,
+.contribution-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 24px;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05);
+}
+
+/* Card headings */
+.stokvel-card header,
+.contribution-card header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.stokvel-card h2,
+.contribution-card h3 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 1.2rem;
+}
+
+/* Card details */
+.stokvel-card p,
+.contribution-card p {
+  margin: 12px 0;
+  color: #475569;
+  line-height: 1.5;
+}
+
+.stokvel-card strong,
+.contribution-card strong {
+  color: #334155;
+}
+
+/* Role badges */
+.role-badge {
+  background: #dbeafe;
+  color: #1d4ed8;
+  padding: 6px 10px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Contribution status badges */
+.status-badge {
+  padding: 6px 10px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.status-paid {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.status-confirmed {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.status-pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+/* Footer */
+.dashboard-footer {
+  text-align: center;
+  color: #94a3b8;
+  font-size: 0.9rem;
+  padding: 24px 0;
+}
+
+/* Smaller screens */
+@media (max-width: 600px) {
+  .dashboard {
+    padding: 24px 16px;
+  }
+
+  .dashboard-header h1 {
+    font-size: 2rem;
+  }
+
+  .stokvel-card,
+  .contribution-card {
+    padding: 18px;
+  }
+}

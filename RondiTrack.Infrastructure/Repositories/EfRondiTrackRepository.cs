@@ -336,8 +336,19 @@ public class EfRondiTrackRepository : IRondiTrackRepository
                 UserId = contribution.UserId,
                 StokvelId = contribution.StokvelId,
                 Cycle = contribution.Cycle,
+                // Look up the human-readable number using the cycle's database ID.
+                CycleNumber = _context.ContributionCycles
+    .Where(cycle => cycle.Id == contribution.Cycle)
+    .Select(cycle => cycle.Number)
+    .FirstOrDefault(),
                 ContributionAmount =
                     contribution.ContributionAmount,
+                // Amount in integer cents for the frontend.
+                AmountCents = (long)(contribution.ContributionAmount * 100m),
+
+                // Payment status and UTC timestamp.
+                Status = contribution.Status,
+                PaidAtUtc = contribution.PaidAtUtc,
                 MemberName =
                     contribution.Member.User.FirstName + " " +
                     contribution.Member.User.LastName
@@ -392,13 +403,26 @@ public class EfRondiTrackRepository : IRondiTrackRepository
                 UserId = contribution.UserId,
                 StokvelId = contribution.StokvelId,
                 Cycle = contribution.Cycle,
+                // Look up the human-readable number using the cycle's database ID.
+                CycleNumber = _context.ContributionCycles
+    .Where(cycle => cycle.Id == contribution.Cycle)
+    .Select(cycle => cycle.Number)
+    .FirstOrDefault(),
                 ContributionAmount = contribution.ContributionAmount,
+                // Amount in integer cents for the frontend.
+                AmountCents = (long)(contribution.ContributionAmount * 100m),
+
+                // Payment status and UTC timestamp.
+                Status = contribution.Status,
+                PaidAtUtc = contribution.PaidAtUtc,
                 MemberName =
                     contribution.Member.User.FirstName + " " +
                     contribution.Member.User.LastName
             })
             .AsNoTracking()
             .ToListAsync();
+
+
     }
 
     // Gets the member and user for a specific contribution.

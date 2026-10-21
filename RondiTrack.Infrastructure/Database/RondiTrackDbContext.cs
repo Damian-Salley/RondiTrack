@@ -58,6 +58,27 @@ public class RondiTrackDbContext : DbContext
             contribution.Cycle
         });
 
+        // Configure the contribution's payment status and timestamp.
+        // The existing composite primary key remains unchanged.
+        modelBuilder.Entity<Contribution>(entity =>
+        {
+            // Every contribution must have a payment status.
+            entity.Property(contribution => contribution.Status)
+                .HasMaxLength(20)
+                .IsRequired();
+
+            // Payment timestamps are stored in UTC.
+            // Pending contributions may not have a payment timestamp.
+            entity.Property(contribution => contribution.PaidAtUtc)
+                .HasColumnType("timestamp with time zone");
+
+            // Restrict statuses to the values supported by the application.
+            entity.ToTable(table =>
+                table.HasCheckConstraint(
+                    "CK_Contributions_Status",
+                    "\"Status\" IN ('Pending', 'Paid', 'Confirmed')"));
+        });
+
         modelBuilder.Entity<Contribution>()
             .HasOne(contribution => contribution.Member)
             .WithMany()
@@ -112,7 +133,7 @@ public class RondiTrackDbContext : DbContext
             .Property(token => token.TokenHash)
             .IsRequired();
 
-            
+
         // Configure how member arrears are stored in the database.
         modelBuilder.Entity<CycleArrears>(entity =>
         {

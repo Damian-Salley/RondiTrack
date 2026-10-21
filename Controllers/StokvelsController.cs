@@ -325,6 +325,62 @@ public class StokvelsController : ControllerBase
         }
     }
 
+    // GET /api/v1/stokvels/{stokvelId}/contributions
+    // Returns paginated contributions for the stokvel's active cycle.
+    [HttpGet("{stokvelId:int}/contributions")]
+    public async Task<ActionResult<PagedResponse<ContributionResponse>>>
+        GetCurrentCycleContributions(
+            int stokvelId,
+            [FromQuery] ContributionPageRequest request)
+    {
+        // Only authenticated members can view contributions.
+        var accessFailure = await CheckAccessAsync(stokvelId);
+
+        if (accessFailure is not null)
+            return accessFailure;
+
+        // Retrieve the existing contribution cycles.
+        var cycles = await _repository.GetContributionCyclesAsync();
+
+        // Find the active cycle for this stokvel.
+        var activeCycle = cycles.FirstOrDefault(cycle =>
+            cycle.StokvelId == stokvelId &&
+            cycle.Status == "Active");
+
+        // Return an empty page if there is no active cycle.
+        if (activeCycle is null)
+        {
+            return Ok(new PagedResponse<ContributionResponse>
+            {
+                Items = new List<ContributionResponse>(),
+                NextPageToken = null
+            });
+        }
+
+        try
+        {
+            // IMPORTANT:
+            // Contributions reference the cycle's database ID,
+            // not its displayed cycle number.
+            var response =
+                await _service.GetPagedContributionResponsesByCycleAsync(
+                    stokvelId,
+                    activeCycle.Id,
+                    request);
+
+            return Ok(response);
+        }
+        catch (ArgumentException exception)
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Status = StatusCodes.Status400BadRequest,
+                Title = "Invalid paging request",
+                Detail = exception.Message
+            });
+        }
+    }
+
     // =========================================================
     // PAYOUT OPERATIONS
     // =========================================================

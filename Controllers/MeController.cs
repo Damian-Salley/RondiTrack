@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Mvc;
 using RondiTrack.Constants;
 using RondiTrack.DTOs.Me;
 using RondiTrack.Repositories;
-using System.Globalization;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 
@@ -76,8 +75,12 @@ public class MeController : ControllerBase
                     userId,
                     cycle.Id);
 
-            // Calculate how much the user has already contributed.
-            var paid = contribution?.ContributionAmount ?? 0m;
+            // Only completed payments count towards the amount paid.
+            // Pending contributions have not yet been completed.
+            var paid = contribution is not null &&
+                       contribution.Status is "Paid" or "Confirmed"
+                ? contribution.ContributionAmount
+                : 0m;
 
             // Find the next scheduled payout that has not passed.
             var nextPayout = payouts
@@ -99,25 +102,22 @@ public class MeController : ControllerBase
                 CurrentCycle = cycle?.Number,
                 CycleStatus = cycle?.Status,
 
-                // Return money as decimal strings for JavaScript safety.
-                PaidThisCycle = paid.ToString(
-                    "0.00",
-                    CultureInfo.InvariantCulture),
+                // Convert the amount already paid into integer cents.
+                // checked prevents silent overflow during conversion.
+                PaidThisCycle = checked((long)(paid * 100m)),
 
-                // Calculate the remaining contribution amount.
-                StillOwes = Math.Max(
-                    0m,
-                    stokvel.ContributionAmount - paid)
-                    .ToString(
-                        "0.00",
-                        CultureInfo.InvariantCulture),
-
-                // Return the next payout date, if one exists.
+                // Calculate the outstanding amount in the API,
+                // then convert it into integer cents.
+                // Use the active cycle's required amount when available.
+                StillOwes = checked((long)(Math.Max(0m, (cycle?.RequiredContributionAmount ?? stokvel.ContributionAmount) - paid) * 100m)),
+                // Return the next scheduled payout in UTC, when one exists.
                 NextPayoutDate = nextPayout?.PayoutDate
             });
         }
 
+
         // Return only stokvels belonging to the authenticated user.
         return Ok(result);
     }
+
 }
