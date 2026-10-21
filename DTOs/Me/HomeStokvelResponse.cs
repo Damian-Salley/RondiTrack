@@ -14,6 +14,7 @@ public class HomeStokvelResponse
     // Information about the current contribution cycle.
     public int? CurrentCycle { get; set; }
 
+
     public string? CycleStatus { get; set; }
 
     // Monetary values are returned as integer cents.
@@ -21,6 +22,9 @@ public class HomeStokvelResponse
     public long PaidThisCycle { get; set; }
 
     public long StillOwes { get; set; }
+
+    // Unpaid amounts carried over from previous cycles, in cents.
+    public long ArrearsCents { get; set; }
 
     // The next scheduled payout date in UTC, if available.
     public DateTime? NextPayoutDate { get; set; }

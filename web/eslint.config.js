@@ -8,12 +8,22 @@ import { defineConfig, globalIgnores } from 'eslint/config'
 export default defineConfig([
   globalIgnores(['dist']),
   {
+
     files: ['**/*.{ts,tsx}'],
     extends: [
       js.configs.recommended,
       tseslint.configs.recommended,
       reactHooks.configs.flat.recommended,
       reactRefresh.configs.vite,
+      {
+        files: [
+          "src/components/ui/badge.tsx",
+          "src/components/ui/button.tsx",
+        ],
+        rules: {
+          "react-refresh/only-export-components": "off",
+        },
+      },
     ],
     languageOptions: {
       globals: globals.browser,

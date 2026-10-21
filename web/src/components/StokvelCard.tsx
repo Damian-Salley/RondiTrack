@@ -1,7 +1,7 @@
 import type { components } from "../api/schema";
 import { formatCents, formatDate } from "../utils/formatters";
+import { StatusBadge } from "./StatusBadge";
 
-// Use the response type generated directly from our ASP.NET Core API.
 type Stokvel = components["schemas"]["HomeStokvelResponse"];
 
 interface StokvelCardProps {
@@ -14,9 +14,7 @@ export function StokvelCard({ stokvel }: StokvelCardProps) {
     <article className="stokvel-card">
       <header>
         <h2>{stokvel.stokvelName ?? "Unnamed stokvel"}</h2>
-        <span className="role-badge">
-          {stokvel.role ?? "Member"}
-        </span>
+        <span className="role-badge">{stokvel.role ?? "Member"}</span>
       </header>
 
       <p>
@@ -26,7 +24,7 @@ export function StokvelCard({ stokvel }: StokvelCardProps) {
 
       <p>
         <strong>Cycle status:</strong>{" "}
-        {stokvel.cycleStatus ?? "Not available"}
+        <StatusBadge kind="cycle" status={stokvel.cycleStatus} />
       </p>
 
       <p>
@@ -38,6 +36,11 @@ export function StokvelCard({ stokvel }: StokvelCardProps) {
         <strong>Still owed:</strong>{" "}
         {formatCents(stokvel.stillOwes ?? 0)}
       </p>
+
+      <StatusBadge
+        kind="arrears"
+        amountCents={Number(stokvel.arrearsCents ?? 0)}
+      />
 
       <p>
         <strong>Next payout:</strong>{" "}

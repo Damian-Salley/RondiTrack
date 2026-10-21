@@ -59,6 +59,12 @@ public class MeController : ControllerBase
             if (membership is null)
                 continue;
 
+
+            // Retrieve this member's arrears for this stokvel.
+            var arrearsCents = await _repository.GetArrearsCentsAsync(
+                stokvel.Id,
+                userId);
+
             // Find the latest active contribution cycle.
             var cycle = cycles
                 .Where(c => c.StokvelId == stokvel.Id &&
@@ -92,8 +98,12 @@ public class MeController : ControllerBase
             // Add the user's home-screen information for this stokvel.
             result.Add(new HomeStokvelResponse
             {
+
                 StokvelId = stokvel.Id,
                 StokvelName = stokvel.Name,
+
+                // Arrears from previous cycles, calculated by the backend.
+                ArrearsCents = arrearsCents,
 
                 // Return the user's role within this stokvel.
                 Role = membership.Role,

@@ -96,6 +96,18 @@ public class EfRondiTrackRepository : IRondiTrackRepository
             .ToListAsync();
     }
 
+    // Returns the member's arrears for this stokvel in integer cents.
+    public async Task<long> GetArrearsCentsAsync(int stokvelId, int userId)
+    {
+        return await _context.CycleArrears
+            .Where(arrears =>
+                arrears.UserId == userId &&
+                _context.ContributionCycles.Any(cycle =>
+                    cycle.Id == arrears.ContributionCycleId &&
+                    cycle.StokvelId == stokvelId))
+            .SumAsync(arrears => (long?)arrears.AmountCents) ?? 0L;
+    }
+
     // Gets one contribution cycle using its ID.
     public async Task<ContributionCycle?> GetContributionCycleByIdAsync(int id)
     {

@@ -126,6 +126,13 @@ public class InMemoryRondiTrackRepository : IRondiTrackRepository
         return Task.FromResult(cycles);
     }
 
+    // The in-memory repository has no arrears storage.
+    // Return zero because no arrears records exist here.
+    public Task<long> GetArrearsCentsAsync(int stokvelId, int userId)
+    {
+        return Task.FromResult(0L);
+    }
+
     //Get contribution cycle by ID
     public Task<ContributionCycle?> GetContributionCycleByIdAsync(int id)
     {

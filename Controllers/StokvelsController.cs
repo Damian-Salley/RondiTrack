@@ -325,6 +325,51 @@ public class StokvelsController : ControllerBase
         }
     }
 
+    // Return all cycles for a stokvel, newest first.
+    [HttpGet("{stokvelId:int}/cycles")]
+    public async Task<ActionResult<List<StokvelCycleResponse>>> GetStokvelCycles(
+        int stokvelId)
+    {
+        // Only members of this stokvel may view its cycles.
+        var accessFailure = await CheckAccessAsync(stokvelId);
+
+        if (accessFailure is not null)
+            return accessFailure;
+
+        // Retrieve cycles and keep only those belonging to this stokvel.
+        var cycles = await _repository.GetContributionCyclesAsync();
+
+        var result = new List<StokvelCycleResponse>();
+
+        foreach (var cycle in cycles
+            .Where(c => c.StokvelId == stokvelId)
+            .OrderByDescending(c => c.Number))
+        {
+            // Retrieve recorded contributions for this cycle.
+            var contributions =
+                await _repository.GetContributionsByCycleAsync(
+                    stokvelId,
+                    cycle.Id);
+
+            // Only Paid and Confirmed contributions count as collected.
+            var collected = contributions
+                .Where(c => c.Status is "Paid" or "Confirmed")
+                .Sum(c => c.ContributionAmount);
+
+            result.Add(new StokvelCycleResponse
+            {
+                Id = cycle.Id,
+                Number = cycle.Number,
+                Status = cycle.Status,
+                DueDateUtc = cycle.EndsAtUtc,
+                TotalCollectedCents = checked((long)(collected * 100m)),
+                AmountDueCents = checked((long)(cycle.TargetAmount * 100m))
+            });
+        }
+
+        return Ok(result);
+    }
+
     // GET /api/v1/stokvels/{stokvelId}/contributions
     // Returns paginated contributions for the stokvel's active cycle.
     [HttpGet("{stokvelId:int}/contributions")]

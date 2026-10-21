@@ -42,4 +42,26 @@ export function formatDate(dateUtc: string | null | undefined): string {
         minute: "2-digit",
         hour12: false,
     }).format(date);
+
+
+}
+// Format a cycle deadline as its Johannesburg due date.
+// A deadline at midnight belongs to the preceding calendar day.
+export function formatDueDate(dueDateUtc: string): string {
+    const deadline = new Date(dueDateUtc);
+
+    if (Number.isNaN(deadline.getTime())) {
+        return "Invalid date";
+    }
+
+    // Subtract one millisecond so a midnight deadline
+    // displays the calendar day that just ended.
+    const dueDay = new Date(deadline.getTime() - 1);
+
+    return new Intl.DateTimeFormat("en-ZA", {
+        timeZone: "Africa/Johannesburg",
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+    }).format(dueDay);
 }

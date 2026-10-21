@@ -122,6 +122,9 @@ public interface IRondiTrackRepository
         Payout payout,
         ContributionCycle cycle);
 
+    // Gets the user's total arrears for a specific stokvel, in cents.
+    Task<long> GetArrearsCentsAsync(int stokvelId, int userId);
+
     // Save a refresh token to the database.
     Task AddRefreshTokenAsync(RefreshToken token);
 

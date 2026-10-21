@@ -1,7 +1,7 @@
 import type { components } from "../api/schema";
 import { formatCents, formatDate } from "../utils/formatters";
+import { StatusBadge } from "./StatusBadge";
 
-// Use the contribution response generated from our actual API.
 type Contribution = components["schemas"]["ContributionResponse"];
 
 interface ContributionCardProps {
@@ -9,20 +9,12 @@ interface ContributionCardProps {
 }
 
 // Displays one contribution and its payment status.
-export function ContributionCard({
-    contribution,
-}: ContributionCardProps) {
-    // Use the status returned by the API, not a calculated status.
-    const status = contribution.status ?? "Unknown";
-
+export function ContributionCard({ contribution }: ContributionCardProps) {
     return (
         <article className="contribution-card">
             <header>
                 <h3>Contribution</h3>
-
-                <span className={`status-badge status-${status.toLowerCase()}`}>
-                    {status}
-                </span>
+                <StatusBadge kind="contribution" status={contribution.status} />
             </header>
 
             <p>

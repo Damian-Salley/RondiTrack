@@ -2,6 +2,8 @@ import type { components } from "./api/schema";
 import { StokvelCard } from "./components/StokvelCard";
 import { ContributionCard } from "./components/ContributionCard";
 import "./App.css";
+import { ContributionList } from "./components/ContributionList";
+import { ThemeToggle } from "./components/ThemeToggle";
 
 // Use TypeScript types generated from the backend's OpenAPI specification.
 type Stokvel = components["schemas"]["HomeStokvelResponse"];
@@ -77,6 +79,43 @@ const demoContributions: Contribution[] = [
   },
 ];
 
+// Demonstration cycles representing Open, Closed and PaidOut states.
+// These will eventually be replaced with responses from the cycles endpoint.
+const demoCycles = [
+  {
+    id: 2,
+    number: 3,
+    status: "Active",
+    dueDateUtc: "2026-10-31T22:00:00Z",
+    totalCollectedCents: 25010,
+    amountDueCents: 50000,
+  },
+  {
+    id: 4,
+    number: 2,
+    status: "Closed",
+    dueDateUtc: "2026-09-30T22:00:00Z",
+    totalCollectedCents: 40000,
+    amountDueCents: 50000,
+  },
+  {
+    id: 5,
+    number: 1,
+    status: "Paid",
+    dueDateUtc: "2026-08-31T22:00:00Z",
+    totalCollectedCents: 50000,
+    amountDueCents: 50000,
+  },
+  {
+    id: 3,
+    number: 1,
+    status: "Active",
+    dueDateUtc: "2026-11-30T22:00:00Z",
+    totalCollectedCents: 0,
+    amountDueCents: 20000,
+  },
+];
+
 function App() {
   return (
     <main className="dashboard">
@@ -85,10 +124,15 @@ function App() {
 
         <h1>Stokvel Dashboard</h1>
 
-        <p>Assignment 7.1 — StokvelCard and ContributionCard</p>
+        <p>Assignment 7.2 — Styled, Responsive Stokvel View</p>
+
+        <ThemeToggle />
       </header>
 
       {/* Display the stokvels belonging to the demonstration user. */}
+
+
+
       <section aria-labelledby="stokvel-heading">
         <h2 id="stokvel-heading">My Stokvels</h2>
 
@@ -100,6 +144,18 @@ function App() {
             />
           ))}
         </div>
+
+
+        <ContributionList
+          cycles={demoCycles}
+          contributions={demoContributions}
+          stokvelNames={{
+            2: "Community Savings",
+            4: "Community Savings",
+            5: "Community Savings",
+            3: "Family Savings",
+          }}
+        />
       </section>
 
       {/* Display the verified Paid, Confirmed, and Pending contributions. */}

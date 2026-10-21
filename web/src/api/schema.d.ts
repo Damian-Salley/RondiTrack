@@ -708,6 +708,45 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/stokvels/{stokvelId}/cycles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    stokvelId: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["StokvelCycleResponse"][];
+                        "application/json": components["schemas"]["StokvelCycleResponse"][];
+                        "text/json": components["schemas"]["StokvelCycleResponse"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/stokvels/{stokvelId}/contributions": {
         parameters: {
             query?: never;
@@ -1097,6 +1136,8 @@ export interface components {
             paidThisCycle?: number | string;
             /** Format: int64 */
             stillOwes?: number | string;
+            /** Format: int64 */
+            arrearsCents?: number | string;
             /** Format: date-time */
             nextPayoutDate?: null | string;
         };
@@ -1144,6 +1185,19 @@ export interface components {
             email: string;
             phoneNumber: string;
             password: string;
+        };
+        StokvelCycleResponse: {
+            /** Format: int32 */
+            id?: number | string;
+            /** Format: int32 */
+            number?: number | string;
+            status?: string;
+            /** Format: date-time */
+            dueDateUtc?: string;
+            /** Format: int64 */
+            totalCollectedCents?: number | string;
+            /** Format: int64 */
+            amountDueCents?: number | string;
         };
         StokvelResponse: {
             /** Format: int32 */

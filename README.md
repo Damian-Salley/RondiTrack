@@ -2226,3 +2226,73 @@ Build and Test job fails and the Docker image build is skipped.
 
 
 
+
+
+
+==================================================================================================================================
+
+
+
+
+
+
+## Assignment 7.2 — Styled, Responsive Stokvel View
+
+Assignment 7.2 extends the RondiTrack frontend with a responsive dashboard, contribution cycle history, status indicators, and theme support.
+
+### Features
+
+* **Responsive dashboard:** Stokvel and contribution cards adapt to desktop and mobile screen sizes.
+* **Contribution cycle history:** Displays cycles in descending order, with the newest cycle first.
+* **Expandable cycle groups:** Individual cycles can be expanded or collapsed, with an Expand all / Collapse all option.
+* **Cycle statuses:** Displays Open, Closed, and Paid out badges.
+* **Contribution statuses:** Displays Paid, Confirmed, and Pending badges.
+* **Due-date countdown:** Open cycles display the number of days remaining until their due date.
+* **Financial information:** Displays amounts collected, amounts due, and member contributions in South African Rand.
+* **Theme controls:** Includes Light, Dark, and System theme options.
+* **UI components:** Uses Tailwind CSS and shadcn/ui components.
+
+### Backend Changes
+
+The backend includes:
+
+* An endpoint for retrieving stokvel contribution cycles.
+* Cycle information including status, due date, total collected, and amount due.
+* Arrears information in the authenticated user's home response.
+* Development seed data demonstrating Active, Closed, and Paid cycles, including a member with outstanding arrears.
+
+### Running the Frontend
+
+From the `web` directory:
+
+```bash
+npm install
+npm run dev
+```
+
+Open the local address displayed by Vite (configured to use port 3000).
+
+The frontend currently uses static demonstration data to display the dashboard. Live API integration is not required for this demonstration.
+
+### Validation
+
+The following commands were executed successfully:
+
+```bash
+npm run typecheck
+npm run lint
+npm run test
+npm run build
+```
+
+**Test results:** 18 tests passed across three test files.
+
+### Responsive Design
+
+The dashboard was visually checked using Chrome's iPhone 16 device emulation.
+
+Stokvel cards stack vertically on mobile screens, while cycle groups and contribution information use responsive layouts.
+
+### Screenshots
+
+Desktop and mobile screenshots can be added here to demonstrate the dashboard layout and contribution cycle history.
