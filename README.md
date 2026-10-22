@@ -2296,3 +2296,188 @@ Stokvel cards stack vertically on mobile screens, while cycle groups and contrib
 ### Screenshots
 
 Desktop and mobile screenshots can be added here to demonstrate the dashboard layout and contribution cycle history.
+
+
+
+
+
+
+==================================================================================================================================
+
+
+
+
+
+
+## Assignment 7.3 — Live Data
+
+### Overview
+
+Assignment 7.3 connects the React frontend to the RondiTrack backend API, replacing demonstration data with authenticated, live information.
+
+The dashboard allows authenticated users to view their stokvels, switch between stokvels, view contribution cycles, and load contributions.
+
+### API Contract
+
+The frontend uses:
+
+- `openapi-typescript` to generate TypeScript definitions from the backend OpenAPI specification.
+- `openapi-fetch` for typed API requests.
+- TanStack React Query for fetching, caching, and managing server data.
+
+The generated API types are stored in `web/src/api/schema.d.ts`.
+
+To regenerate the API types, start the backend and run the following command from the `web` directory:
+
+```bash
+npm run generate
+```
+
+The frontend uses the `VITE_API_BASE_URL` environment variable to identify the backend API.
+
+### Authentication and Session Management
+
+Authentication is implemented in `web/src/auth/session.ts`.
+
+The implementation includes:
+
+- Access tokens stored in memory rather than local storage.
+- Refresh tokens managed through HttpOnly cookies.
+- Automatic token refresh when an API request receives HTTP 401.
+- Single-flight refresh to prevent multiple simultaneous refresh requests.
+- One retry of the original request after a successful refresh.
+- Logout functionality that clears the authenticated session.
+
+### Single-Flight Refresh Proof
+
+Six authentication tests were implemented using Vitest.
+
+The tests verify authentication behaviour, including token refresh and concurrent requests.
+
+To demonstrate the importance of single-flight refresh, the implementation was deliberately modified to allow multiple simultaneous refresh requests.
+
+The test correctly detected the problem.
+
+After restoring the single-flight implementation, all authentication tests passed.
+
+Evidence files:
+
+- `web/auth-tests-failing.txt`
+- `web/auth-tests-passing.txt`
+
+### Live Dashboard and Stokvel Switching
+
+The dashboard retrieves stokvel information, contribution cycles, and contributions from the backend API.
+
+Each stokvel is identified by its unique ID.
+
+React Query uses the selected stokvel ID when retrieving its associated information, preventing data from different stokvels from being mixed.
+
+### Stokvel Switching Proof
+
+A React Testing Library test was created in:
+
+`web/src/App.test.tsx`
+
+The test verifies that:
+
+1. The first stokvel's contributions are displayed initially.
+2. Selecting another stokvel displays its contributions.
+3. Contributions belonging to the previous stokvel are no longer displayed.
+
+The application was deliberately modified to continue requesting contributions for the first stokvel after switching.
+
+The test failed as expected.
+
+After restoring the correct implementation, the test passed.
+
+Evidence files:
+
+- `web/stokvel-switch-failing.txt`
+- `web/stokvel-switch-passing.txt`
+
+### Error Handling
+
+The frontend includes reusable error-handling functionality:
+
+- `web/src/api/errors.ts`
+- `web/src/components/ErrorView.tsx`
+
+The implementation provides understandable messages for common HTTP errors, including:
+
+- 400 — Invalid request
+- 401 — Expired session
+- 403 — Forbidden access
+- 404 — Resource not found
+- 409 — Conflict
+- 429 — Too many requests
+- 500 — Server error
+
+The error utilities also support correlation IDs and parsing `Retry-After` values expressed in seconds or HTTP dates.
+
+Seven error-handling tests passed successfully.
+
+### Shared-Phone Logout Check
+
+The following manual verification was performed:
+
+1. Logged into the application.
+2. Selected the second stokvel.
+3. Logged out.
+4. Confirmed that the login screen appeared.
+5. Logged back in.
+6. Confirmed that the dashboard started with the first stokvel selected.
+
+The application clears the React Query cache during logout and resets the selected stokvel when the dashboard is mounted again.
+
+This helps prevent a subsequent user on the same device from seeing the previous user's cached dashboard information.
+
+### React Query DevTools
+
+TanStack React Query DevTools is included in the frontend to inspect query activity and cached data during development.
+
+Queries for stokvel-specific data use the selected stokvel ID.
+
+**Screenshot evidence:** Add a React Query DevTools screenshot showing the selected stokvel's query keys.
+
+### Testing and Verification
+
+The following checks were completed successfully:
+
+| Check | Result |
+|---|---|
+| Authentication tests | 6 passed |
+| Error-handling tests | 7 passed |
+| Stokvel-switching test | 1 passed |
+| Existing frontend tests | 18 passed |
+| Total tests | 32 passed individually |
+| TypeScript type checking | Passed |
+| Production build | Passed |
+
+To run the checks from the `web` directory:
+
+```bash
+npm test
+npm run typecheck
+npm run lint
+npm run build
+```
+
+### Known Gaps
+
+- React Query DevTools screenshot evidence must be added to the submission.
+- Error messages support correlation IDs and retry delays, but complete propagation of API response headers into the dashboard error component has not yet been verified.
+- The final combined test suite and lint checks should be rerun before submission.
+
+### Demonstration
+
+The demonstration recording should show:
+
+1. Logging into RondiTrack.
+2. Viewing live stokvel data.
+3. Switching between stokvels.
+4. Viewing contribution cycles and contributions.
+5. Inspecting React Query DevTools.
+6. Logging out and confirming the session is cleared.
+
+The recording should be no longer than two minutes.
