@@ -95,9 +95,11 @@ public class AuthController : ControllerBase
 
 
 
+
     // Log in and issue access and refresh tokens.
     [AllowAnonymous]
     [EnableRateLimiting("Login")]
+    [ProducesResponseType(typeof(AuthTokenResponse), StatusCodes.Status200OK)]
     [HttpPost("login")]
     public async Task<IActionResult> Login(LoginRequest request)
     {
@@ -173,16 +175,16 @@ public class AuthController : ControllerBase
         _logger.LogInformation("Sign-in succeeded. UserId={UserId}", user.Id);
 
         // Return the access token.
-        return Ok(new
-        {
-            AccessToken = accessToken,
-            TokenType = "Bearer",
-            ExpiresIn = 900
-        });
+        return Ok(new AuthTokenResponse(
+            accessToken,
+            "Bearer",
+            900
+        ));
     }
 
     // Rotate a refresh token and issue a new access token.
     [AllowAnonymous]
+    [ProducesResponseType(typeof(AuthTokenResponse), StatusCodes.Status200OK)]
     [HttpPost("refresh")]
     public async Task<IActionResult> Refresh()
     {
@@ -306,12 +308,11 @@ public class AuthController : ControllerBase
             });
 
         // Return a new 15-minute access token.
-        return Ok(new
-        {
-            AccessToken = GenerateAccessToken(user),
-            TokenType = "Bearer",
-            ExpiresIn = 900
-        });
+        return Ok(new AuthTokenResponse(
+            GenerateAccessToken(user),
+            "Bearer",
+            900
+        ));
     }
 
     // Log out and revoke the entire refresh-token family.

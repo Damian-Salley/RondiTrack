@@ -26,6 +26,32 @@ public class MeController : ControllerBase
         _timeProvider = timeProvider;
     }
 
+    // Return the authenticated user's identity.
+    [HttpGet]
+    public async Task<ActionResult<MeResponse>> GetMe()
+    {
+        // Retrieve the user's ID from their JWT.
+        var claim = User.FindFirstValue(JwtRegisteredClaimNames.Sub)
+            ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (!int.TryParse(claim, out var userId))
+            return Unauthorized();
+
+        // Retrieve the authenticated user.
+        var user = await _repository.GetUserByIdAsync(userId);
+
+        if (user is null)
+            return NotFound();
+
+        // Return identity information only.
+        return Ok(new MeResponse(
+            user.Id,
+            user.FirstName,
+            user.LastName,
+            user.Email
+        ));
+    }
+
     // Return the authenticated user's home-screen information.
     [HttpGet("home")]
     public async Task<ActionResult<List<HomeStokvelResponse>>> GetHome()

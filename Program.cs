@@ -659,8 +659,7 @@ if (app.Environment.IsDevelopment() &&
             user => user.NormalizedEmail ==
                 "ASSIGNMENT71-DEMO@RONDITRACK.EXAMPLE");
 
-        if (demoUser is not null &&
-            string.IsNullOrWhiteSpace(demoUser.PasswordHash))
+        if (demoUser is not null && string.IsNullOrWhiteSpace(demoUser.PasswordHash))
         {
             // Use the same password-hashing mechanism as AuthController.
             var passwordHasher =

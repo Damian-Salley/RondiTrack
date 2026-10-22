@@ -72,7 +72,11 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "text/plain": components["schemas"]["AuthTokenResponse"];
+                        "application/json": components["schemas"]["AuthTokenResponse"];
+                        "text/json": components["schemas"]["AuthTokenResponse"];
+                    };
                 };
             };
         };
@@ -105,7 +109,11 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "text/plain": components["schemas"]["AuthTokenResponse"];
+                        "application/json": components["schemas"]["AuthTokenResponse"];
+                        "text/json": components["schemas"]["AuthTokenResponse"];
+                    };
                 };
             };
         };
@@ -294,6 +302,43 @@ export interface paths {
                 };
             };
         };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["MeResponse"];
+                        "application/json": components["schemas"]["MeResponse"];
+                        "text/json": components["schemas"]["MeResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1072,6 +1117,12 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AuthTokenResponse: {
+            accessToken: string;
+            tokenType: string;
+            /** Format: int32 */
+            expiresIn: number | string;
+        };
         ContributionCycleResponse: {
             /** Format: int32 */
             id?: number | string;
@@ -1144,6 +1195,13 @@ export interface components {
         LoginRequest: {
             email: string;
             password: string;
+        };
+        MeResponse: {
+            /** Format: int32 */
+            id: number | string;
+            firstName: string;
+            lastName: string;
+            email: string;
         };
         PagedResponseOfContributionResponse: {
             items?: components["schemas"]["ContributionResponse"][];

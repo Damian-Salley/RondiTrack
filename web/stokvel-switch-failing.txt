@@ -1,0 +1,257 @@
+
+> web@0.0.0 test
+> vitest run src/App.test.tsx
+
+
+[1m[30m[46m RUN [49m[39m[22m [36mv5.0.5 [39m[90mC:/Users/Damian/Desktop/RondiTrackApp/RondiTrack/web[39m
+
+ [31m❯[39m src/App.test.tsx [2m([22m[2m1 test[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 1178[2mms[22m[39m
+   [31m❯[39m Stokvel switching [2m(1)[22m
+[31m     [31m×[31m does not show the previous stokvel's contributions after switching[39m[33m 1176[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m src/App.test.tsx[2m > [22mStokvel switching[2m > [22mdoes not show the previous stokvel's contributions after switching
+[31m[1mTestingLibraryElementError[22m[39m: Unable to find an element with the text: Family Member. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<main[39m
+      [33mclass[39m=[32m"dashboard"[39m
+    [36m>[39m
+      [36m<header[39m
+        [33mclass[39m=[32m"dashboard-header"[39m
+      [36m>[39m
+        [36m<p[39m
+          [33mclass[39m=[32m"eyebrow"[39m
+        [36m>[39m
+          [0mRondiTrack[0m
+        [36m</p>[39m
+        [36m<h1>[39m
+          [0mStokvel Dashboard[0m
+        [36m</h1>[39m
+        [36m<p>[39m
+          [0mAssignment 7.3 — Live Data[0m
+        [36m</p>[39m
+        [36m<div[39m
+          [33maria-label[39m=[32m"Appearance"[39m
+          [33mclass[39m=[32m"flex flex-wrap gap-2"[39m
+        [36m>[39m
+          [36m<button[39m
+            [33maria-pressed[39m=[32m"false"[39m
+            [33mclass[39m=[32m"group/button inline-flex shrink-0 items-center justify-center rounded-md border bg-clip-padding text-sm font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 border-border bg-background shadow-xs hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50 h-9 gap-1.5 px-2.5 in-data-[slot=button-group]:rounded-md has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2"[39m
+            [33mdata-size[39m=[32m"default"[39m
+            [33mdata-slot[39m=[32m"button"[39m
+            [33mdata-variant[39m=[32m"outline"[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0mLight[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33maria-pressed[39m=[32m"false"[39m
+            [33mclass[39m=[32m"group/button inline-flex shrink-0 items-center justify-center rounded-md border bg-clip-padding text-sm font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 border-border bg-background shadow-xs hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50 h-9 gap-1.5 px-2.5 in-data-[slot=button-group]:rounded-md has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2"[39m
+            [33mdata-size[39m=[32m"default"[39m
+            [33mdata-slot[39m=[32m"button"[39m
+            [33mdata-variant[39m=[32m"outline"[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0mDark[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33maria-pressed[39m=[32m"true"[39m
+            [33mclass[39m=[32m"group/button inline-flex shrink-0 items-center justify-center rounded-md border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 bg-primary text-primary-foreground hover:bg-primary/80 h-9 gap-1.5 px-2.5 in-data-[slot=button-group]:rounded-md has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2"[39m
+            [33mdata-size[39m=[32m"default"[39m
+            [33mdata-slot[39m=[32m"button"[39m
+            [33mdata-variant[39m=[32m"default"[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0mSystem[0m
+          [36m</button>[39m
+        [36m</div>[39m
+        [36m<button>[39m
+          [0mLog out[0m
+        [36m</button>[39m
+      [36m</header>[39m
+      [36m<section[39m
+        [33maria-labelledby[39m=[32m"stokvel-heading"[39m
+      [36m>[39m
+        [36m<h2[39m
+          [33mid[39m=[32m"stokvel-heading"[39m
+        [36m>[39m
+          [0mMy Stokvels[0m
+        [36m</h2>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"card-grid"[39m
+        [36m>[39m
+          [36m<div>[39m
+            [36m<button[39m
+              [33maria-pressed[39m=[32m"false"[39m
+              [33mtype[39m=[32m"button"[39m
+            [36m>[39m
+              [0mSelect stokvel[0m
+            [36m</button>[39m
+            [36m<article[39m
+              [33mclass[39m=[32m"stokvel-card"[39m
+            [36m>[39m
+              [36m<header>[39m
+                [36m<h2>[39m
+                  [0mCommunity Savings[0m
+                [36m</h2>[39m
+                [36m<span[39m
+                  [33mclass[39m=[32m"role-badge"[39m
+                [36m>[39m
+                  [0mMember[0m
+                [36m</span>[39m
+              [36m</header>[39m
+              [36m<p>[39m
+                [36m<strong>[39m
+                  [0mCurrent cycle:[0m
+                [36m</strong>[39m
+                [0m [0m
+                [0m1[0m
+              [36m</p>[39m
+              [36m<p>[39m
+                [36m<strong>[39m
+                  [0mCycle status:[0m
+                [36m</strong>[39m
+                [0m [0m
+                [36m<span[39m
+                  [33mclass[39m=[32m"group/badge inline-flex h-5 w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-4xl border border-transparent px-2 py-0.5 text-xs font-medium whitespace-nowrap transition-all focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&>svg]:pointer-events-none [&>svg]:size-3! bg-secondary text-secondary-foreground [a]:hover:bg-secondary/80"[39m
+                  [33mdata-slot[39m=[32m"badge"[39m
+                  [33mdata-variant[39m=[32m"secondary"[39m
+                [36m>[39m
+                  [36m<svg[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"lucide lucide-clock"[39m
+                    [...
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<main[39m
+      [33mclass[39m=[32m"dashboard"[39m
+    [36m>[39m
+      [36m<header[39m
+        [33mclass[39m=[32m"dashboard-header"[39m
+      [36m>[39m
+        [36m<p[39m
+          [33mclass[39m=[32m"eyebrow"[39m
+        [36m>[39m
+          [0mRondiTrack[0m
+        [36m</p>[39m
+        [36m<h1>[39m
+          [0mStokvel Dashboard[0m
+        [36m</h1>[39m
+        [36m<p>[39m
+          [0mAssignment 7.3 — Live Data[0m
+        [36m</p>[39m
+        [36m<div[39m
+          [33maria-label[39m=[32m"Appearance"[39m
+          [33mclass[39m=[32m"flex flex-wrap gap-2"[39m
+        [36m>[39m
+          [36m<button[39m
+            [33maria-pressed[39m=[32m"false"[39m
+            [33mclass[39m=[32m"group/button inline-flex shrink-0 items-center justify-center rounded-md border bg-clip-padding text-sm font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 border-border bg-background shadow-xs hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50 h-9 gap-1.5 px-2.5 in-data-[slot=button-group]:rounded-md has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2"[39m
+            [33mdata-size[39m=[32m"default"[39m
+            [33mdata-slot[39m=[32m"button"[39m
+            [33mdata-variant[39m=[32m"outline"[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0mLight[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33maria-pressed[39m=[32m"false"[39m
+            [33mclass[39m=[32m"group/button inline-flex shrink-0 items-center justify-center rounded-md border bg-clip-padding text-sm font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 border-border bg-background shadow-xs hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50 h-9 gap-1.5 px-2.5 in-data-[slot=button-group]:rounded-md has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2"[39m
+            [33mdata-size[39m=[32m"default"[39m
+            [33mdata-slot[39m=[32m"button"[39m
+            [33mdata-variant[39m=[32m"outline"[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0mDark[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33maria-pressed[39m=[32m"true"[39m
+            [33mclass[39m=[32m"group/button inline-flex shrink-0 items-center justify-center rounded-md border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 bg-primary text-primary-foreground hover:bg-primary/80 h-9 gap-1.5 px-2.5 in-data-[slot=button-group]:rounded-md has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2"[39m
+            [33mdata-size[39m=[32m"default"[39m
+            [33mdata-slot[39m=[32m"button"[39m
+            [33mdata-variant[39m=[32m"default"[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0mSystem[0m
+          [36m</button>[39m
+        [36m</div>[39m
+        [36m<button>[39m
+          [0mLog out[0m
+        [36m</button>[39m
+      [36m</header>[39m
+      [36m<section[39m
+        [33maria-labelledby[39m=[32m"stokvel-heading"[39m
+      [36m>[39m
+        [36m<h2[39m
+          [33mid[39m=[32m"stokvel-heading"[39m
+        [36m>[39m
+          [0mMy Stokvels[0m
+        [36m</h2>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"card-grid"[39m
+        [36m>[39m
+          [36m<div>[39m
+            [36m<button[39m
+              [33maria-pressed[39m=[32m"false"[39m
+              [33mtype[39m=[32m"button"[39m
+            [36m>[39m
+              [0mSelect stokvel[0m
+            [36m</button>[39m
+            [36m<article[39m
+              [33mclass[39m=[32m"stokvel-card"[39m
+            [36m>[39m
+              [36m<header>[39m
+                [36m<h2>[39m
+                  [0mCommunity Savings[0m
+                [36m</h2>[39m
+                [36m<span[39m
+                  [33mclass[39m=[32m"role-badge"[39m
+                [36m>[39m
+                  [0mMember[0m
+                [36m</span>[39m
+              [36m</header>[39m
+              [36m<p>[39m
+                [36m<strong>[39m
+                  [0mCurrent cycle:[0m
+                [36m</strong>[39m
+                [0m [0m
+                [0m1[0m
+              [36m</p>[39m
+              [36m<p>[39m
+                [36m<strong>[39m
+                  [0mCycle status:[0m
+                [36m</strong>[39m
+                [0m [0m
+                [36m<span[39m
+                  [33mclass[39m=[32m"group/badge inline-flex h-5 w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-4xl border border-transparent px-2 py-0.5 text-xs font-medium whitespace-nowrap transition-all focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&>svg]:pointer-events-none [&>svg]:size-3! bg-secondary text-secondary-foreground [a]:hover:bg-secondary/80"[39m
+                  [33mdata-slot[39m=[32m"badge"[39m
+                  [33mdata-variant[39m=[32m"secondary"[39m
+                [36m>[39m
+                  [36m<svg[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"lucide lucide-clock"[39m
+                    [...
+[90m [2m❯[22m waitForWrapper node_modules/@testing-library/dom/dist/wait-for.js:[2m163:27[22m[39m
+[90m [2m❯[22m findAllByText node_modules/@testing-library/dom/dist/query-helpers.js:[2m86:33[22m[39m
+[36m [2m❯[22m src/App.test.tsx:[2m133:30[22m[39m
+    [90m131|[39m
+    [90m132|[39m         // Check that the second stokvel's contribution is displayed.
+    [90m133|[39m         expect((await screen.findAllByText("Family Member")).length).t…
+    [90m   |[39m                              [31m^[39m
+    [90m134|[39m
+    [90m135|[39m         // Ensure the previous stokvel's contribution is no longer vis…
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m   Start at [22m 22:56:46
+[2m   Duration [22m 3.22s[2m (tests 39%, environment 25%, transform 19%, import 17%)[22m
+
