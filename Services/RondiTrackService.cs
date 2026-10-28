@@ -70,26 +70,64 @@ public class RondiTrackService : IRondiTrackService
 
         await _repository.UpdateStokvelAsync(stokvel);
     }
+    // Existing contribution method retained for previous assignments.
     public async Task<Contribution> RecordContributionAsync(
-    int stokvelId,
-    int userId,
-    int cycle,
-    string idempotencyKey)
+        int stokvelId,
+        int userId,
+        int cycle,
+        string idempotencyKey)
     {
-        var payload = $"{stokvelId}:{userId}:{cycle}";
+        var stokvel = await _repository.GetStokvelByIdAsync(stokvelId);
+
+        if (stokvel is null)
+            throw new NotFoundException("Stokvel not found.");
+
+        // Previous assignments use the stokvel's configured amount.
+        var amountInCents = decimal.ToInt64(
+            stokvel.ContributionAmount * 100m);
+
+        // Preserve the original endpoint's behaviour for duplicate contributions.
+        try
+        {
+            // Use the newer implementation to record the contribution.
+            return await RecordContributionAsync(
+                stokvelId,
+                userId,
+                cycle,
+                amountInCents,
+                idempotencyKey);
+        }
+        catch (DuplicateContributionException)
+        {
+            // The original endpoint must return HTTP 422 instead of HTTP 409.
+            throw new BusinessRuleException(
+                "A contribution has already been recorded for this member and cycle.");
+        }
+    }
+
+    // Assignment 7.4: Record an exact contribution amount in cents.
+    public async Task<Contribution> RecordContributionAsync(
+        int stokvelId,
+        int userId,
+        int cycle,
+        long amountInCents,
+        string idempotencyKey)
+    {
+        if (amountInCents <= 0)
+            throw new BusinessRuleException(
+                "Contribution amount must be greater than zero.");
+
+        // Include the amount so a changed request cannot reuse the same key.
+        var payload = $"{stokvelId}:{userId}:{cycle}:{amountInCents}";
 
         var existingRecord =
             await _idempotencyStore.GetAsync(idempotencyKey);
 
-        if (existingRecord is not null &&
-            existingRecord.Payload == payload)
+        if (existingRecord is not null)
         {
-            return existingRecord.Contribution;
-        }
+            if (existingRecord.Payload == payload)
+                return existingRecord.Contribution;
 
-        if (existingRecord is not null &&
-            existingRecord.Payload != payload)
-        {
             throw new IdempotencyConflictException(
                 "Idempotency key has already been used with a different request.");
         }
@@ -98,40 +136,33 @@ public class RondiTrackService : IRondiTrackService
             await _repository.GetStokvelByIdAsync(stokvelId);
 
         if (stokvel is null)
-        {
-            throw new NotFoundException(
-                "Stokvel not found.");
-        }
+            throw new NotFoundException("Stokvel not found.");
 
         var user =
             await _repository.GetUserByIdAsync(userId);
 
         if (user is null)
-        {
-            throw new NotFoundException(
-                "User not found.");
-        }
+            throw new NotFoundException("User not found.");
 
         var contributionCycle =
             await _repository.GetContributionCycleByIdAsync(cycle);
 
         if (contributionCycle is null)
-        {
             throw new NotFoundException(
                 $"No contribution cycle with ID {cycle} was found.");
-        }
 
         if (contributionCycle.StokvelId != stokvelId)
-        {
             throw new BusinessRuleException(
                 "The contribution cycle does not belong to this stokvel.");
-        }
+
+        // Only active cycles accept new contributions.
+        if (contributionCycle.Status != "Active")
+            throw new BusinessRuleException(
+                "Contributions cannot be recorded for a closed or paid-out cycle.");
 
         if (!stokvel.Members.Any(member => member.UserId == userId))
-        {
             throw new BusinessRuleException(
                 "User is not a member of this stokvel.");
-        }
 
         var existingContribution =
             await _repository.GetContributionAsync(
@@ -140,35 +171,27 @@ public class RondiTrackService : IRondiTrackService
                 cycle);
 
         if (existingContribution is not null)
-        {
-            throw new BusinessRuleException(
+            throw new DuplicateContributionException(
                 "A contribution has already been recorded for this member and cycle.");
-        }
 
-        // Obtain the payment timestamp from the injected clock.
-        // UTC timestamps ensure consistent storage and API responses.
+        // Convert integer cents to an exact decimal amount.
+        var amount = amountInCents / 100m;
         var paidAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
 
-        // Create the contribution with its actual payment timestamp.
         var contribution = new Contribution(
             userId,
             stokvelId,
             cycle,
-            stokvel.ContributionAmount,
+            amount,
             paidAtUtc);
 
         await _repository.AddContributionAsync(contribution);
 
-        var record = new IdempotencyRecord(
-            payload,
-            contribution);
-
         await _idempotencyStore.SaveAsync(
-     idempotencyKey,
-     record);
+            idempotencyKey,
+            new IdempotencyRecord(payload, contribution));
 
         // Count only newly recorded contributions.
-        // Idempotent retries do not increment the counter.
         RondiTrackTelemetry.ContributionsRecorded.Add(1);
 
         return contribution;

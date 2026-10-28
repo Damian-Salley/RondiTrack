@@ -9,10 +9,10 @@ import {
 import { StokvelCard } from "./components/StokvelCard";
 import { ContributionCard } from "./components/ContributionCard";
 import { ContributionList } from "./components/ContributionList";
+import { RecordContributionForm } from "./components/RecordContributionForm";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { ErrorView } from "./components/ErrorView";
 import "./App.css";
-
 
 function Dashboard({ onLogout }: { onLogout: () => Promise<void> }) {
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -30,17 +30,28 @@ function Dashboard({ onLogout }: { onLogout: () => Promise<void> }) {
         : null;
 
   const cycles = useCycles(activeId);
+
   // Fetch contributions for the currently selected stokvel.
   const contributions = useContributions(activeId);
 
-  const cycleItems = (cycles.data ?? []).map((cycle) => ({
-    id: Number(cycle.id),
-    number: Number(cycle.number),
-    status: cycle.status ?? "",
-    dueDateUtc: cycle.dueDateUtc ?? "",
-    totalCollectedCents: Number(cycle.totalCollectedCents ?? 0),
-    amountDueCents: Number(cycle.amountDueCents ?? 0),
-  }));
+  // Convert API cycle data into the format expected by ContributionList.
+  const cycleItems = (cycles.data ?? []).map(
+    (cycle: {
+      id?: number | string;
+      number?: number | string;
+      status?: string;
+      dueDateUtc?: string;
+      totalCollectedCents?: number | string;
+      amountDueCents?: number | string;
+    }) => ({
+      id: Number(cycle.id),
+      number: Number(cycle.number),
+      status: cycle.status ?? "",
+      dueDateUtc: cycle.dueDateUtc ?? "",
+      totalCollectedCents: Number(cycle.totalCollectedCents ?? 0),
+      amountDueCents: Number(cycle.amountDueCents ?? 0),
+    })
+  );
 
   const contributionItems =
     contributions.data?.pages.flatMap((page) => page.items ?? []) ?? [];
@@ -124,6 +135,27 @@ function Dashboard({ onLogout }: { onLogout: () => Promise<void> }) {
 
           {cycles.isSuccess && contributions.isSuccess && (
             <>
+              {/* Show the form only when the selected stokvel has an active cycle. */}
+              {selectedStokvel?.cycleStatus === "Active" &&
+                selectedStokvel.currentCycle != null &&
+                cycleItems
+                  .filter(
+                    (cycle) =>
+                      cycle.number === Number(selectedStokvel.currentCycle)
+                  )
+                  .map((cycle) => (
+                    <RecordContributionForm
+                      key={cycle.id}
+                      stokvelId={activeId}
+                      cycleId={cycle.id}
+                      stokvelName={selectedStokvel.stokvelName ?? "Stokvel"}
+                      cycleNumber={cycle.number}
+                      cycleStatus={selectedStokvel.cycleStatus ?? ""}
+                      role={selectedStokvel.role ?? ""}
+                    />
+                  ))}
+
+              {/* Display existing contributions grouped by cycle. */}
               <ContributionList
                 key={activeId}
                 cycles={cycleItems}

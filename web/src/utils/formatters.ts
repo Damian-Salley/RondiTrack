@@ -1,3 +1,32 @@
+// Convert a positive rand amount into integer cents without floating-point maths.
+// Accepts decimal dots, decimal commas, and spaces as thousands separators.
+export function parseRandToCents(input: string): number | null {
+    const value = input.trim();
+
+    // Accept either ungrouped digits or correctly grouped thousands.
+    const validFormat = /^(?:\d+|\d{1,3}(?: \d{3})+)(?:[.,]\d{1,2})?$/;
+
+    if (!validFormat.test(value)) {
+        return null;
+    }
+
+    // Remove thousands separators and split rand from cents.
+    const normalized = value.replace(/ /g, "").replace(",", ".");
+    const [randPart, centsPart = ""] = normalized.split(".");
+
+    // Build cents using integer arithmetic only.
+    const cents =
+        BigInt(randPart) * 100n +
+        BigInt(centsPart.padEnd(2, "0") || "0");
+
+    // The API receives a JavaScript number, so prevent precision loss.
+    if (cents > BigInt(Number.MAX_SAFE_INTEGER) || cents === 0n) {
+        return null;
+    }
+
+    return Number(cents);
+}
+
 // Format an integer amount of cents as South African rand.
 // Uses integer arithmetic to avoid floating-point rounding errors.
 export function formatCents(cents: number | string): string {

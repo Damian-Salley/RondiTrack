@@ -1,5 +1,56 @@
 import { describe, expect, it } from "vitest";
-import { formatCents, formatDate } from "./formatters";
+import { formatCents, formatDate, parseRandToCents } from "./formatters";
+
+describe("parseRandToCents", () => {
+  it.each([
+    ["150", 15000],
+    ["150.5", 15050],
+    ["150.50", 15050],
+    ["150,50", 15050],
+    ["1 500,50", 150050],
+    ["0.99", 99],
+    ["100000", 10000000],
+  ])("converts %s into %i cents", (input, expected) => {
+    expect(parseRandToCents(input)).toBe(expected);
+  });
+
+  it.each([
+    "",
+    "0",
+    "-150",
+    "150.555",
+    "150,555",
+    "abc",
+    "1 50,50",
+    "R150",
+    "1.500,50",
+  ])("rejects invalid input %s", (input) => {
+    expect(parseRandToCents(input)).toBeNull();
+  });
+
+  it("rejects amounts larger than JavaScript's safe integer range", () => {
+    expect(parseRandToCents("999999999999999")).toBeNull();
+  });
+
+  it("preserves cents when converting back to rand", () => {
+    // Check every cent value from R0.01 to R100.00.
+    for (let cents = 1; cents <= 10_000; cents++) {
+      const randInput =
+        `${Math.floor(cents / 100)}.${String(cents % 100).padStart(2, "0")}`;
+
+      expect(parseRandToCents(randInput)).toBe(cents);
+    }
+
+    // Check larger amounts, including the R100,000 boundary.
+    for (const cents of [100_001, 150_050, 999_999, 10_000_000]) {
+      const randInput =
+        `${Math.floor(cents / 100)}.${String(cents % 100).padStart(2, "0")}`;
+
+      expect(parseRandToCents(randInput)).toBe(cents);
+    }
+  });
+
+}); // Closes describe("parseRandToCents")
 
 describe("formatCents", () => {
   it("formats zero cents", () => {

@@ -8,6 +8,7 @@ using RondiTrack.Mappers;
 using RondiTrack.Models;
 using RondiTrack.Repositories;
 using RondiTrack.Services;
+using RondiTrack.Idempotency;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using RondiTrack.Constants;
@@ -23,15 +24,19 @@ public class StokvelsController : ControllerBase
     private readonly IRondiTrackRepository _repository;
     private readonly IRondiTrackService _service;
     private readonly IAuthorizationService _authorization;
+    // Check whether a contribution request has already been processed.
+    private readonly IIdempotencyStore _idempotencyStore;
 
     public StokvelsController(
-        IRondiTrackRepository repository,
-        IRondiTrackService service,
-        IAuthorizationService authorization)
+    IRondiTrackRepository repository,
+    IRondiTrackService service,
+    IAuthorizationService authorization,
+    IIdempotencyStore idempotencyStore)
     {
         _repository = repository;
         _service = service;
         _authorization = authorization;
+        _idempotencyStore = idempotencyStore;
     }
 
     // Get the authenticated user's ID from their JWT.
@@ -266,6 +271,7 @@ public class StokvelsController : ControllerBase
     // CONTRIBUTION OPERATIONS
     // =========================================================
 
+    // Existing endpoint retained for compatibility with previous assignments.
     // Members can record their own contributions.
     // Treasurer and Chairperson can record contributions for others.
     [EnableRateLimiting("Financial")]
@@ -278,10 +284,9 @@ public class StokvelsController : ControllerBase
     {
         var accessFailure = await CheckAccessAsync(
             stokvelId, elevated: CurrentUserId != userId);
+
         if (accessFailure is not null)
             return accessFailure;
-
-        // Verify the target user is also a stokvel member.
 
         var contribution = await _service.RecordContributionAsync(
             stokvelId,
@@ -290,6 +295,57 @@ public class StokvelsController : ControllerBase
             idempotencyKey);
 
         return Ok(ContributionMapper.ToResponse(contribution));
+    }
+
+    // Assignment 7.4: Record a contribution using integer cents.
+    [EnableRateLimiting("Financial")]
+    [HttpPost("{stokvelId:int}/cycles/{cycleId:int}/contributions")]
+    public async Task<ActionResult<ContributionResponse>> RecordCycleContribution(
+    int stokvelId,
+    int cycleId,
+    RecordCycleContributionRequest request,
+// Require an idempotency key for safe contribution retries.
+    [FromHeader(Name = "Idempotency-Key")]
+    [System.ComponentModel.DataAnnotations.Required]
+    string idempotencyKey)
+    {
+        if (CurrentUserId is not int currentUserId)
+            return Unauthorized();
+
+        // Only stokvel members can record contributions.
+        var accessFailure = await CheckAccessAsync(stokvelId);
+
+        if (accessFailure is not null)
+            return accessFailure;
+
+        // Only Treasurers can record contributions for other members.
+        if (currentUserId != request.UserId)
+        {
+            var member = await _repository.GetMemberForContributionAsync(
+                stokvelId, currentUserId);
+
+            if (member?.Role != "Treasurer")
+                return Forbid();
+        }
+
+        // Check whether this idempotency key was already processed.
+        var existingRecord = await _idempotencyStore.GetAsync(idempotencyKey);
+
+        // Record the contribution or return the existing result.
+        var contribution = await _service.RecordContributionAsync(
+            stokvelId,
+            request.UserId,
+            cycleId,
+            request.AmountInCents,
+            idempotencyKey);
+
+        // Tell the frontend whether the request was replayed.
+        Response.Headers["Idempotency-Replayed"] =
+            existingRecord is not null ? "true" : "false";
+
+        return StatusCode(
+            StatusCodes.Status201Created,
+            ContributionMapper.ToResponse(contribution));
     }
 
     // Members can view contributions for their stokvel.
@@ -301,6 +357,7 @@ public class StokvelsController : ControllerBase
             [FromQuery] ContributionPageRequest request)
     {
         var accessFailure = await CheckAccessAsync(stokvelId);
+
         if (accessFailure is not null)
             return accessFailure;
 
@@ -324,52 +381,6 @@ public class StokvelsController : ControllerBase
             });
         }
     }
-
-    // Return all cycles for a stokvel, newest first.
-    [HttpGet("{stokvelId:int}/cycles")]
-    public async Task<ActionResult<List<StokvelCycleResponse>>> GetStokvelCycles(
-        int stokvelId)
-    {
-        // Only members of this stokvel may view its cycles.
-        var accessFailure = await CheckAccessAsync(stokvelId);
-
-        if (accessFailure is not null)
-            return accessFailure;
-
-        // Retrieve cycles and keep only those belonging to this stokvel.
-        var cycles = await _repository.GetContributionCyclesAsync();
-
-        var result = new List<StokvelCycleResponse>();
-
-        foreach (var cycle in cycles
-            .Where(c => c.StokvelId == stokvelId)
-            .OrderByDescending(c => c.Number))
-        {
-            // Retrieve recorded contributions for this cycle.
-            var contributions =
-                await _repository.GetContributionsByCycleAsync(
-                    stokvelId,
-                    cycle.Id);
-
-            // Only Paid and Confirmed contributions count as collected.
-            var collected = contributions
-                .Where(c => c.Status is "Paid" or "Confirmed")
-                .Sum(c => c.ContributionAmount);
-
-            result.Add(new StokvelCycleResponse
-            {
-                Id = cycle.Id,
-                Number = cycle.Number,
-                Status = cycle.Status,
-                DueDateUtc = cycle.EndsAtUtc,
-                TotalCollectedCents = checked((long)(collected * 100m)),
-                AmountDueCents = checked((long)(cycle.TargetAmount * 100m))
-            });
-        }
-
-        return Ok(result);
-    }
-
     // GET /api/v1/stokvels/{stokvelId}/contributions
     // Returns paginated contributions for the stokvel's active cycle.
     [HttpGet("{stokvelId:int}/contributions")]

@@ -20,6 +20,9 @@ public class PostgresApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     // Captures application logs so tests can inspect them.
     public CapturedLoggerProvider CapturedLogs { get; } = new();
 
+    // Tests can optionally override the financial request limit.
+    public int FinancialTokenLimit { get; set; } = 1000;
+
     // Each factory uses its own PostgreSQL Docker container.
     private readonly PostgreSqlContainer _container =
         new PostgreSqlBuilder("postgres:17")
@@ -51,21 +54,21 @@ public class PostgresApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             "ConnectionStrings:RondiTrack",
             _container.GetConnectionString());
 
+        // Prevent demo seeding before the test database is migrated.
+        builder.UseSetting("SeedDemoData", "false");
+
         // Generate a unique JWT signing key for the test application.
         builder.UseSetting(
             "Jwt:Key",
             Convert.ToBase64String(
                 System.Security.Cryptography.RandomNumberGenerator.GetBytes(32)));
 
-        // Allow sufficient requests for normal integration tests.
-        builder.UseSetting(
-            "RateLimiting:Login:PermitLimit",
-            "1000");
-
+        // Use the normal limit unless a test requests a smaller one.
         builder.UseSetting(
             "RateLimiting:Financial:TokenLimit",
-            "1000");
+            FinancialTokenLimit.ToString());
 
+        // Keep the normal replenishment configuration.
         builder.UseSetting(
             "RateLimiting:Financial:TokensPerPeriod",
             "1000");

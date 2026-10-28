@@ -48,6 +48,9 @@ public class GlobalExceptionHandler : IExceptionHandler
             IdempotencyConflictException =>
                 StatusCodes.Status409Conflict,
 
+            DuplicateContributionException =>
+                StatusCodes.Status409Conflict,
+
             _ =>
                 StatusCodes.Status500InternalServerError
         };
@@ -103,6 +106,9 @@ public class GlobalExceptionHandler : IExceptionHandler
 
                 IdempotencyConflictException =>
                     "Idempotency conflict",
+
+                DuplicateContributionException =>
+                    "Duplicate contribution",
 
                 _ =>
                     "Internal server error"

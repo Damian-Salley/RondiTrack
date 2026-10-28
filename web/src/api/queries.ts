@@ -1,6 +1,12 @@
-import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
+import {
+    useQuery,
+    useInfiniteQuery,
+    useMutation,
+    useQueryClient,
+} from "@tanstack/react-query";
 import { api } from "./client";
 
+// Retrieve the authenticated user's stokvel dashboard.
 export function useHome() {
     return useQuery({
         queryKey: ["home"],
@@ -15,6 +21,7 @@ export function useHome() {
     });
 }
 
+// Retrieve all stokvels.
 export function useStokvels() {
     return useQuery({
         queryKey: ["stokvels"],
@@ -29,6 +36,7 @@ export function useStokvels() {
     });
 }
 
+// Retrieve a specific stokvel.
 export function useStokvel(id: number | null) {
     return useQuery({
         queryKey: ["stokvel", id],
@@ -48,28 +56,25 @@ export function useStokvel(id: number | null) {
     });
 }
 
+// Retrieve contribution cycles for the selected stokvel.
 export function useCycles(stokvelId: number | null) {
     return useQuery({
         queryKey: ["cycles", stokvelId],
         enabled: stokvelId !== null,
         queryFn: async () => {
-            const { data, error } = await api.GET(
-                "/api/v1/stokvels/{stokvelId}/cycles",
-                {
-                    params: {
-                        path: { stokvelId: stokvelId! },
-                    },
-                }
-            );
+            const { data, error } = await api.GET("/api/v1/contributioncycles");
 
             if (error) throw error;
 
-            return data;
+            return (data ?? []).filter(
+                (cycle) => Number(cycle.stokvelId) === stokvelId
+            );
         },
         retry: false,
     });
 }
 
+// Retrieve paginated contributions for the selected stokvel.
 export function useContributions(stokvelId: number | null) {
     return useInfiniteQuery({
         queryKey: ["contributions", stokvelId],
@@ -99,6 +104,7 @@ export function useContributions(stokvelId: number | null) {
     });
 }
 
+// Retrieve the authenticated user's details.
 export function useMe() {
     return useQuery({
         queryKey: ["me"],
@@ -109,6 +115,90 @@ export function useMe() {
 
             return data;
         },
+        retry: false,
+    });
+}
+
+// Retrieve members of the selected stokvel.
+export function useMembers(stokvelId: number | null) {
+    return useQuery({
+        queryKey: ["members", stokvelId],
+        enabled: stokvelId !== null,
+        queryFn: async () => {
+            const { data, error } = await api.GET(
+                "/api/v1/stokvels/{stokvelId}/members",
+                {
+                    params: {
+                        path: { stokvelId: stokvelId! },
+                    },
+                }
+            );
+
+            if (error) throw error;
+
+            return data ?? [];
+        },
+        retry: false,
+    });
+}
+
+// Information required to record a contribution.
+interface RecordContributionInput {
+    stokvelId: number;
+    cycleId: number;
+    userId: number;
+    amountInCents: number;
+    idempotencyKey: string;
+}
+
+// Submit a contribution and refresh the dashboard on success.
+export function useRecordContribution() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async ({
+            stokvelId,
+            cycleId,
+            userId,
+            amountInCents,
+            idempotencyKey,
+        }: RecordContributionInput) => {
+            const { data, error } = await api.POST(
+                "/api/v1/stokvels/{stokvelId}/cycles/{cycleId}/contributions",
+                {
+                    params: {
+                        path: {
+                            stokvelId,
+                            cycleId,
+                        },
+                        header: {
+                            "Idempotency-Key": idempotencyKey,
+                        },
+                    },
+                    body: {
+                        userId,
+                        amountInCents,
+                    },
+                }
+            );
+
+            if (error) throw error;
+
+            return data;
+        },
+
+        onSuccess: async (_data, variables) => {
+            await Promise.all([
+                queryClient.invalidateQueries({ queryKey: ["home"] }),
+                queryClient.invalidateQueries({
+                    queryKey: ["cycles", variables.stokvelId],
+                }),
+                queryClient.invalidateQueries({
+                    queryKey: ["contributions", variables.stokvelId],
+                }),
+            ]);
+        },
+
         retry: false,
     });
 }

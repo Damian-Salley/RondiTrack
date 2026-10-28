@@ -84,6 +84,34 @@ vi.mock("./api/queries", () => ({
         isSuccess: true,
         hasNextPage: false,
     }),
+
+    // Mock the authenticated user for the contribution form.
+    useMe: () => ({
+        data: {
+            id: 1,
+            firstName: "Test",
+            lastName: "Member",
+        },
+        isPending: false,
+        isError: false,
+        isSuccess: true,
+    }),
+
+    // Mock stokvel members.
+    useMembers: () => ({
+        data: [],
+        isPending: false,
+        isError: false,
+        isSuccess: true,
+    }),
+
+    // Mock contribution submission without calling the real API.
+    useRecordContribution: () => ({
+        mutateAsync: vi.fn(async () => ({})),
+        isPending: false,
+        isError: false,
+        isSuccess: false,
+    }),
 }));
 
 // Simulate the browser's dark-mode detection for jsdom.

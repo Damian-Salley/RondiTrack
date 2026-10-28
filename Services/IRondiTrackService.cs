@@ -17,6 +17,14 @@ public interface IRondiTrackService
         int cycle,
         string idempotencyKey);
 
+    // Records a contribution using an exact amount in integer cents.
+    Task<Contribution> RecordContributionAsync(
+        int stokvelId,
+        int userId,
+        int cycle,
+        long amountInCents,
+        string idempotencyKey);
+
     //Gets all contributions for a specific stokvel and contribution cycle
     Task<IReadOnlyCollection<Contribution>> GetContributionsByCycleAsync(
         int stokvelId,

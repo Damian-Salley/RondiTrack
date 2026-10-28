@@ -2481,3 +2481,42 @@ The demonstration recording should show:
 6. Logging out and confirming the session is cleared.
 
 The recording should be no longer than two minutes.
+
+
+
+
+====================================================================================================================================
+
+
+
+
+
+## Assignment 7.4 — Record a Contribution
+
+### Backend
+- Added a cycle-specific endpoint for recording contributions:
+  `POST /api/v1/stokvels/{stokvelId}/cycles/{cycleId}/contributions`
+- Validates contribution requests and amounts in cents.
+- Prevents duplicate contributions.
+- Requires an `Idempotency-Key` header to support safe retries.
+- Handles contribution errors and rate limiting.
+
+### Frontend
+- Added a Record Contribution form to the stokvel dashboard.
+- Uses React Hook Form and Zod for input validation.
+- Converts South African Rand amounts to integer cents.
+- Allows Treasurers to select a stokvel member.
+- Allows ordinary members to record contributions for themselves.
+- Prevents submissions when the contribution cycle is inactive.
+- Displays submission success and error messages.
+- Reuses the original idempotency key when retrying an uncertain submission.
+- Refreshes dashboard data after successful submissions.
+
+### Verification
+Frontend checks:
+- `npm run typecheck`
+- `npm test` — 56 tests passing
+- `npm run build`
+
+Backend integration tests are included in
+`RondiTrack.Tests/Assignment74ContributionTests.cs`.
