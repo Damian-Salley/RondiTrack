@@ -2520,3 +2520,219 @@ Frontend checks:
 
 Backend integration tests are included in
 `RondiTrack.Tests/Assignment74ContributionTests.cs`.
+
+
+
+
+
+======================================================================================================================================
+
+
+
+
+
+# RondiTrack — Next.js Frontend (Assignment 8.1)
+
+This directory contains the Next.js 16 frontend for RondiTrack, created alongside the existing React/Vite frontend in `web/`.
+
+The application uses server-side authentication, encrypted sessions, and authenticated API requests to the ASP.NET Core backend.
+
+## Technology Stack
+
+* Next.js 16 (App Router)
+* React 19
+* TypeScript
+* jose (encrypted session cookies)
+* Vitest (automated testing)
+* ASP.NET Core Web API
+* PostgreSQL
+
+## Setup
+
+### Prerequisites
+
+* Node.js 24
+* npm
+* Running RondiTrack ASP.NET Core backend
+* PostgreSQL database configured for the backend
+
+### Installation
+
+From the `web-next/` directory:
+
+```bash
+npm install
+```
+
+Create a `.env.local` file containing:
+
+```env
+API_BASE_URL=http://localhost:5274
+SESSION_SECRET=<your-generated-secret>
+```
+
+Generate a secure session secret using:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
+```
+
+Replace `<your-generated-secret>` with the generated value.
+
+Do not commit `.env.local` or expose the session secret.
+
+### Running the Application
+
+Start the ASP.NET Core backend from the repository root:
+
+```bash
+dotnet run
+```
+
+Start the Next.js frontend from `web-next/`:
+
+```bash
+npm run dev
+```
+
+Open `http://localhost:3000/login` and sign in using an existing RondiTrack account.
+
+## Routes
+
+| Route                  | Description                                        |
+| ---------------------- | -------------------------------------------------- |
+| `/`                    | Redirects to `/stokvels`                           |
+| `/login`               | Sign-in page                                       |
+| `/stokvels`            | Lists the authenticated user's stokvels            |
+| `/stokvels/[id]`       | Displays details for an individual stokvel         |
+| `/dashboard/member`    | Displays the user's stokvel membership information |
+| `/dashboard/treasurer` | Displays stokvels where the user is Treasurer      |
+
+## Authentication and Session Security
+
+Authentication uses Next.js Server Actions and the existing ASP.NET Core authentication endpoints.
+
+### Login
+
+1. The user submits their email and password through the login form.
+2. A Next.js Server Action sends the credentials to the backend.
+3. The backend returns an access token and refresh token.
+4. Next.js stores the tokens in an encrypted session.
+5. The browser receives an HttpOnly `session` cookie.
+6. The user is redirected to `/stokvels`.
+
+### Session Cookie
+
+The session cookie uses:
+
+* **HttpOnly:** Prevents direct access through browser JavaScript.
+* **SameSite=Lax:** Restricts cross-site cookie transmission.
+* **Secure:** Enabled in production.
+* **Encryption:** Session contents are encrypted using `jose`.
+* **Expiration:** Seven days.
+
+The session encryption key is configured using `SESSION_SECRET`.
+
+### Authenticated API Requests
+
+Backend API requests are performed by the Next.js server.
+
+The server retrieves the access token from the encrypted session and sends it to the backend using the Bearer authentication scheme.
+
+The browser does not receive the backend access token through the application's API request headers.
+
+Unauthenticated users attempting to access protected pages are redirected to `/login`.
+
+### Logout
+
+Logout calls the backend logout endpoint, clears the Next.js session cookie, and redirects the user to `/login`.
+
+## Treasurer Role Filtering
+
+Treasurer permissions are evaluated separately for each stokvel.
+
+The `getTreasurerStokvels()` function in `lib/roles.ts` filters the user's stokvels according to their individual membership roles.
+
+For example, a user who is Treasurer in Stokvel A but Member in Stokvel B will only see Stokvel A on the Treasurer Dashboard.
+
+This filtering controls dashboard visibility. The backend remains responsible for enforcing authorization on protected operations.
+
+## Automated Tests
+
+Run the Treasurer role-filtering tests:
+
+```bash
+npm run test
+```
+
+The tests verify:
+
+1. Only stokvels with the Treasurer role are returned.
+2. Non-Treasurer stokvels are excluded.
+3. An empty input returns an empty result.
+
+**Result:** 3 tests passed.
+
+## Quality Checks
+
+Run:
+
+```bash
+npm run lint
+npm run build
+npm run test
+npm audit
+```
+
+Assignment 8.1 verification results:
+
+| Check            | Result            |
+| ---------------- | ----------------- |
+| ESLint           | Passed            |
+| Production build | Passed            |
+| TypeScript       | Passed            |
+| Vitest           | 3/3 tests passed  |
+| npm audit        | 0 vulnerabilities |
+
+## Manual Security Verification
+
+The following checks were completed using the running application and Chrome Developer Tools:
+
+* Login successfully creates an authenticated session.
+* The browser receives a `session` cookie with HttpOnly enabled.
+* Authenticated pages load successfully.
+* The browser's `/stokvels` request does not contain an `Authorization: Bearer` header.
+* Logout clears the authenticated session.
+* Accessing a protected route after logout redirects to `/login`.
+
+## Project Structure
+
+```text
+web-next/
+├── app/
+│   ├── actions/
+│   │   └── auth.ts
+│   ├── dashboard/
+│   │   ├── member/
+│   │   └── treasurer/
+│   ├── login/
+│   ├── stokvels/
+│   │   └── [id]/
+│   ├── layout.tsx
+│   └── page.tsx
+├── lib/
+│   ├── api.ts
+│   ├── roles.ts
+│   ├── roles.test.ts
+│   └── session.ts
+├── .env.local
+└── package.json
+```
+
+`.env.local` is a local configuration file and must not be committed.
+
+## Future Development
+
+Assignment 8.2 will extend this application with additional features, including improved session refresh handling, contribution submission, and streaming server-rendered content.
+
+The existing React/Vite frontend remains available in `web/`.
