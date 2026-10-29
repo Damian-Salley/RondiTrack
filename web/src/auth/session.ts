@@ -90,45 +90,31 @@ export async function authFetch(
     input: string,
     init: RequestInit = {}
 ): Promise<Response> {
-    // Preserve the original request for a possible retry.
-    const originalRequest = new Request(`${baseUrl}${input}`, {
-        ...init,
-        credentials: "include"
-    });
+    async function sendRequest(token: string | null): Promise<Response> {
+        const headers = new Headers(init.headers);
 
-    // Create a copy before the request body is consumed.
-    const retryRequest = originalRequest.clone();
+        if (token) {
+            headers.set("Authorization", `Bearer ${token}`);
+        }
 
-    // Attach the current access token.
-    const headers = new Headers(originalRequest.headers);
-
-    if (accessToken) {
-        headers.set("Authorization", `Bearer ${accessToken}`);
+        return fetch(`${baseUrl}${input}`, {
+            ...init,
+            headers,
+            credentials: "include"
+        } as RequestInit);
     }
 
-    // Send the initial request.
-    const response = await fetch(
-        new Request(originalRequest, { headers })
-    );
+    const response = await sendRequest(accessToken);
 
-    // Return immediately unless authentication failed.
     if (response.status !== 401) {
         return response;
     }
 
-    // Try to obtain a new access token.
     const newToken = await refreshAccessToken();
 
-    // Do not retry if refreshing failed.
     if (!newToken) {
         return response;
     }
 
-    // Retry once using the new token and preserved body.
-    const retryHeaders = new Headers(retryRequest.headers);
-    retryHeaders.set("Authorization", `Bearer ${newToken}`);
-
-    return fetch(new Request(retryRequest, {
-        headers: retryHeaders
-    }));
+    return sendRequest(newToken);
 }

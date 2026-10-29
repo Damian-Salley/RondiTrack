@@ -13,8 +13,8 @@ const tokenResponse = (token: string) =>
 const unauthorized = () => new Response(null, { status: 401 });
 
 // Support both string URLs and Request objects passed to fetch().
-function getRequest(input: RequestInfo | URL): Request {
-    return new Request(input);
+function getRequest(input: RequestInfo | URL, init?: RequestInit): Request {
+    return new Request(input, init);
 }
 
 describe("Authentication session", () => {
@@ -26,8 +26,8 @@ describe("Authentication session", () => {
     it("uses one refresh for simultaneous 401 responses", async () => {
         let refreshCount = 0;
 
-        vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
-            const request = getRequest(input);
+        vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+            const request = getRequest(input, init);
 
             if (request.url.endsWith("/auth/login")) {
                 return tokenResponse("old-token");
@@ -63,8 +63,8 @@ describe("Authentication session", () => {
         let refreshCount = 0;
         let expireNextRequest = false;
 
-        vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
-            const request = getRequest(input);
+        vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+            const request = getRequest(input, init);
 
             if (request.url.endsWith("/auth/login")) {
                 return tokenResponse("old-token");
@@ -109,8 +109,8 @@ describe("Authentication session", () => {
         let apiCalls = 0;
         let refreshCalls = 0;
 
-        vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
-            const request = getRequest(input);
+        vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+            const request = getRequest(input, init);
 
             if (request.url.endsWith("/auth/login")) {
                 return tokenResponse("old-token");
@@ -139,8 +139,8 @@ describe("Authentication session", () => {
         let refreshCalls = 0;
         let apiCalls = 0;
 
-        vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
-            const request = getRequest(input);
+        vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+            const request = getRequest(input, init);
 
             if (request.url.endsWith("/auth/login")) {
                 return tokenResponse("old-token");
@@ -168,8 +168,8 @@ describe("Authentication session", () => {
     it("preserves a POST body after refreshing", async () => {
         const bodies: string[] = [];
 
-        vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
-            const request = getRequest(input);
+        vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+            const request = getRequest(input, init);
 
             if (request.url.endsWith("/auth/login")) {
                 return tokenResponse("old-token");
@@ -203,8 +203,8 @@ describe("Authentication session", () => {
     });
 
     it("clears the access token on logout", async () => {
-        vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
-            const request = getRequest(input);
+        vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+            const request = getRequest(input, init);
 
             if (request.url.endsWith("/auth/login")) {
                 return tokenResponse("old-token");

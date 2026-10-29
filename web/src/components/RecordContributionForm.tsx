@@ -77,7 +77,9 @@ export function RecordContributionForm({
             reset();
 
             setMessage("Contribution recorded successfully.");
-        } catch {
+        } catch (error) {
+            console.error("Contribution submission failed:", error);
+
             setMessage(
                 "The contribution could not be confirmed. " +
                 "You can retry the same submission safely."
