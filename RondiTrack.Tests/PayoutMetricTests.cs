@@ -61,7 +61,7 @@ public class PayoutMetricTests
         using var client = _factory.CreateClient();
 
         // Register a user.
-        var registerResponse = await client.PostAsJsonAsync(
+        using var registerResponse = await client.PostAsJsonAsync(
             "/api/v1/auth/register",
             new
             {
@@ -75,34 +75,58 @@ public class PayoutMetricTests
 
         Assert.Equal(HttpStatusCode.Created, registerResponse.StatusCode);
 
+        // Store the actual database-generated IDs.
+        int registeredUserId;
+        int savedStokvelId;
+        int savedCycleId;
+
         // Create a stokvel, membership and contribution cycle.
         using (var scope = _factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider
                 .GetRequiredService<RondiTrackDbContext>();
 
-            db.Stokvels.Add(new Stokvel(
+            // Retrieve the user ID generated during registration.
+            registeredUserId = await db.Users
+                .Where(user => user.Email == email)
+                .Select(user => user.Id)
+                .SingleAsync();
+
+            // Save the stokvel first.
+            var stokvel = new Stokvel(
                 id,
                 "Payout Metric Test",
-                500m));
+                500m);
 
+            db.Stokvels.Add(stokvel);
+
+            await db.SaveChangesAsync();
+
+            savedStokvelId = stokvel.Id;
+
+            // Create the Treasurer membership.
             db.StokvelMembers.Add(new StokvelMember(
-                id,
-                id,
+                savedStokvelId,
+                registeredUserId,
                 "Treasurer",
                 DateTime.UtcNow));
 
-            db.ContributionCycles.Add(new ContributionCycle(
+            // Create the contribution cycle.
+            var cycle = new ContributionCycle(
                 id,
-                id,
+                savedStokvelId,
                 1,
-                500m));
+                500m);
+
+            db.ContributionCycles.Add(cycle);
 
             await db.SaveChangesAsync();
+
+            savedCycleId = cycle.Id;
         }
 
         // Log in.
-        var loginResponse = await client.PostAsJsonAsync(
+        using var loginResponse = await client.PostAsJsonAsync(
             "/api/v1/auth/login",
             new { email, password });
 
@@ -118,7 +142,7 @@ public class PayoutMetricTests
         // Record the contribution required for payout.
         using var contributionRequest = new HttpRequestMessage(
             HttpMethod.Post,
-            $"/api/v1/stokvels/{id}/members/{id}/contributions");
+            $"/api/v1/stokvels/{savedStokvelId}/members/{registeredUserId}/contributions");
 
         contributionRequest.Headers.Authorization =
             new AuthenticationHeaderValue("Bearer", accessToken);
@@ -129,18 +153,20 @@ public class PayoutMetricTests
 
         contributionRequest.Content = JsonContent.Create(new
         {
-            cycle = id
+            cycle = savedCycleId
         });
 
         using var contributionResponse =
             await client.SendAsync(contributionRequest);
 
-        Assert.Equal(HttpStatusCode.OK, contributionResponse.StatusCode);
+        Assert.Equal(
+            HttpStatusCode.OK,
+            contributionResponse.StatusCode);
 
         // Process the payout.
         using var payoutRequest = new HttpRequestMessage(
             HttpMethod.Post,
-            $"/api/v1/stokvels/{id}/cycles/{id}/payout");
+            $"/api/v1/stokvels/{savedStokvelId}/cycles/{savedCycleId}/payout");
 
         payoutRequest.Headers.Authorization =
             new AuthenticationHeaderValue("Bearer", accessToken);

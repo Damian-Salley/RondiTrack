@@ -21,10 +21,12 @@ public class User
         string phoneNumber)
     {
         // ID Validation
-        if (id <= 0)
+        // ID 0 is allowed for new users because PostgreSQL generates their ID.
+        // Negative IDs are invalid.
+        if (id < 0)
         {
             throw new ArgumentException(
-                "ID must be greater than 0.",
+                "ID cannot be negative.",
                 nameof(id));
         }
 

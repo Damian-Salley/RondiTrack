@@ -101,7 +101,9 @@ public class PopiaLoggingTests
             "/api/v1/auth/login",
             new { email, password = incorrectPassword });
 
-        Assert.Equal(HttpStatusCode.Unauthorized, failedLoginResponse.StatusCode);
+        Assert.Equal(
+            HttpStatusCode.Unauthorized,
+            failedLoginResponse.StatusCode);
 
         // Refresh the authentication session.
         using var refreshRequest = new HttpRequestMessage(
@@ -130,39 +132,68 @@ public class PopiaLoggingTests
             .Split(';')[0]
             .Substring("refreshToken=".Length);
 
+        // Store the actual database-generated IDs for later requests.
+        int registeredUserId;
+        int savedStokvelId;
+        int savedCycleId;
+
         // Seed a stokvel and contribution cycle.
         using (var scope = _factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider
                 .GetRequiredService<RondiTrackDbContext>();
 
-            db.Stokvels.Add(new Stokvel(
+            // Registration uses a database-generated user ID.
+            // Retrieve the saved ID using the unique email address.
+            registeredUserId = await db.Users
+                .Where(user => user.Email == email)
+                .Select(user => user.Id)
+                .SingleAsync();
+
+            // Save the stokvel first so PostgreSQL assigns its ID.
+            var stokvel = new Stokvel(
                 id,
                 "POPIA Logging Test",
-                contributionAmount));
+                contributionAmount);
 
+            db.Stokvels.Add(stokvel);
+
+            await db.SaveChangesAsync();
+
+            // Use the actual ID assigned by the database.
+            savedStokvelId = stokvel.Id;
+
+            // Create the membership using valid foreign keys.
             db.StokvelMembers.Add(new StokvelMember(
-                id,
-                id,
+                savedStokvelId,
+                registeredUserId,
                 "Member",
                 DateTime.UtcNow));
 
-            db.ContributionCycles.Add(new ContributionCycle(
+            // Create the cycle using the saved stokvel ID.
+            var cycle = new ContributionCycle(
                 id,
-                id,
+                savedStokvelId,
                 1,
-                contributionAmount));
+                contributionAmount);
+
+            db.ContributionCycles.Add(cycle);
 
             await db.SaveChangesAsync();
+
+            // Store the actual cycle ID for the contribution request.
+            savedCycleId = cycle.Id;
         }
 
-        // Record a contribution.
+        // Record a contribution for the registered user.
         using var contributionRequest = new HttpRequestMessage(
             HttpMethod.Post,
-            $"/api/v1/stokvels/{id}/members/{id}/contributions");
+            $"/api/v1/stokvels/{savedStokvelId}/members/{registeredUserId}/contributions");
 
         contributionRequest.Headers.Authorization =
-            new AuthenticationHeaderValue("Bearer", refreshedAccessToken);
+            new AuthenticationHeaderValue(
+                "Bearer",
+                refreshedAccessToken);
 
         contributionRequest.Headers.Add(
             "Idempotency-Key",
@@ -170,13 +201,15 @@ public class PopiaLoggingTests
 
         contributionRequest.Content = JsonContent.Create(new
         {
-            cycle = id
+            cycle = savedCycleId
         });
 
         using var contributionResponse =
             await client.SendAsync(contributionRequest);
 
-        Assert.Equal(HttpStatusCode.OK, contributionResponse.StatusCode);
+        Assert.Equal(
+            HttpStatusCode.OK,
+            contributionResponse.StatusCode);
 
         // Check all captured logs for sensitive values.
         var logs = _factory.CapturedLogs.Logs.ToArray();
@@ -185,16 +218,19 @@ public class PopiaLoggingTests
             Environment.NewLine,
             logs.Select(log => log.Message));
 
+        // Personal information must not appear in captured logs.
         Assert.DoesNotContain(email, combinedLogs);
         Assert.DoesNotContain(password, combinedLogs);
         Assert.DoesNotContain(incorrectPassword, combinedLogs);
 
+        // Authentication tokens must not appear in captured logs.
         Assert.DoesNotContain(accessToken, combinedLogs);
         Assert.DoesNotContain(refreshedAccessToken, combinedLogs);
 
         Assert.DoesNotContain(originalRefreshToken, combinedLogs);
         Assert.DoesNotContain(replacementRefreshToken, combinedLogs);
 
+        // The distinctive financial amount must not appear in logs.
         Assert.DoesNotContain(
             contributionAmount.ToString(
                 System.Globalization.CultureInfo.InvariantCulture),

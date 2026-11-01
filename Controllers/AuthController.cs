@@ -10,6 +10,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using RondiTrack.Constants;
 using Microsoft.AspNetCore.RateLimiting;
+using RondiTrack.Domain.DTOs.Authorization;
 
 namespace RondiTrack.Controllers;
 
@@ -62,9 +63,9 @@ public class AuthController : ControllerBase
             });
         }
 
-        // Create the user.
+        // Use 0 so Entity Framework lets PostgreSQL generate the user's ID.
         var user = new User(
-            request.Id,
+            0,
             request.FirstName,
             request.LastName,
             request.Email,

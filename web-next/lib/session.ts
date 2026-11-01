@@ -1,47 +1,28 @@
 import "server-only";
+
 import { cookies } from "next/headers";
-import { EncryptJWT, jwtDecrypt } from "jose";
 
-const secret = Buffer.from(process.env.SESSION_SECRET!, "base64url");
+import {
+    decryptSession,
+    encryptSession,
+    sessionCookieOptions,
+    type Session,
+} from "@/lib/session-crypto";
 
-export type Session = {
-    accessToken: string;
-    refreshToken: string;
-};
+export type { Session };
 
-export async function createSession(session: Session) {
-    const encrypted = await new EncryptJWT(session)
-        .setProtectedHeader({ alg: "dir", enc: "A256GCM" })
-        .setIssuedAt()
-        .setExpirationTime("7d")
-        .encrypt(secret);
+export async function createSession(session: Session): Promise<void> {
+    const encrypted = await encryptSession(session);
 
-    (await cookies()).set("session", encrypted, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        path: "/",
-        maxAge: 60 * 60 * 24 * 7,
-    });
+    (await cookies()).set("session", encrypted, sessionCookieOptions);
 }
 
 export async function getSession(): Promise<Session | null> {
     const encrypted = (await cookies()).get("session")?.value;
 
-    if (!encrypted) return null;
-
-    try {
-        const { payload } = await jwtDecrypt(encrypted, secret);
-
-        return {
-            accessToken: payload.accessToken as string,
-            refreshToken: payload.refreshToken as string,
-        };
-    } catch {
-        return null;
-    }
+    return decryptSession(encrypted);
 }
 
-export async function deleteSession() {
+export async function deleteSession(): Promise<void> {
     (await cookies()).delete("session");
 }
