@@ -63,15 +63,27 @@ public class PostgresApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             Convert.ToBase64String(
                 System.Security.Cryptography.RandomNumberGenerator.GetBytes(32)));
 
-        // Use the normal limit unless a test requests a smaller one.
+        // Allow more login requests in integration tests.
+        // The production login rate limit remains unchanged.
+        // This prevents multiple test logins from triggering HTTP 429.
+        builder.UseSetting(
+            "RateLimiting:Login:PermitLimit",
+            "100");
+
+        // Keep the login rate-limit window at 60 seconds.
+        builder.UseSetting(
+            "RateLimiting:Login:WindowSeconds",
+            "60");
+
+        // Use the normal financial limit unless a test requests a smaller one.
         builder.UseSetting(
             "RateLimiting:Financial:TokenLimit",
             FinancialTokenLimit.ToString());
 
-        // Keep the normal replenishment configuration.
+        // Keep replenishment consistent with the configured token limit.
         builder.UseSetting(
             "RateLimiting:Financial:TokensPerPeriod",
-            "1000");
+            FinancialTokenLimit.ToString());
 
         // Customize the application's services for integration testing.
         builder.ConfigureServices(services =>

@@ -78,3 +78,107 @@ export async function getHomeStokvels(): Promise<HomeStokvel[]> {
 
     return (await response.json()) as HomeStokvel[];
 }
+
+// Matches the ContributionCycleResponse DTO returned by the C# backend.
+export type ContributionCycle = {
+    id: number;
+    stokvelId: number;
+    number: number;
+    targetAmount: number;
+};
+
+export type StokvelMember = {
+    id: number;
+    firstName: string;
+    lastName: string;
+    email: string;
+};
+
+export async function getContributionCycles(
+    stokvelId: number
+): Promise<ContributionCycle[]> {
+    const response = await apiFetch("/api/v1/contributioncycles");
+
+    if (!response.ok) {
+        throw new Error("Failed to load contribution cycles.");
+    }
+
+    const cycles = (await response.json()) as ContributionCycle[];
+
+    return cycles.filter((cycle) => cycle.stokvelId === stokvelId);
+}
+
+export async function getStokvelMembers(
+    stokvelId: number
+): Promise<StokvelMember[]> {
+    const response = await apiFetch(
+        `/api/v1/stokvels/${stokvelId}/members`
+    );
+
+    if (!response.ok) {
+        throw new Error("Failed to load stokvel members.");
+    }
+
+    return (await response.json()) as StokvelMember[];
+}
+
+// Represents a single contribution returned by the backend.
+export type Contribution = {
+    id: string;
+    userId: number;
+    stokvelId: number;
+    cycle: number;
+    cycleNumber: number;
+    amountCents: number;
+    status: string;
+    paidAtUtc: string | null;
+    memberName: string;
+};
+
+// Represents a paginated list of contributions.
+export type ContributionsPage = {
+    items: Contribution[];
+    nextPageToken: string | null;
+};
+
+// Retrieve the first page of recent contributions for a stokvel.
+export async function getRecentContributions(
+    stokvelId: number
+): Promise<ContributionsPage> {
+
+    // Request contributions for the stokvel's active cycle.
+    // The backend determines which cycle is currently active.
+    const response = await apiFetch(
+        `/api/v1/stokvels/${stokvelId}/contributions`
+    );
+
+    // Stop if the API request fails.
+    if (!response.ok) {
+        throw new Error("Failed to load recent contributions.");
+    }
+
+    // Return the contributions and pagination information.
+    return (await response.json()) as ContributionsPage;
+}
+
+// Represents the authenticated user returned by GET /api/v1/me.
+export interface Me {
+    id: number;
+    firstName: string;
+    lastName: string;
+    email: string;
+}
+
+// Retrieve the authenticated user's identity from the backend.
+export async function getMe(): Promise<Me> {
+    // apiFetch automatically includes the user's access token.
+    const response = await apiFetch("/api/v1/me");
+
+    // Stop if the backend cannot retrieve the user's identity.
+    if (!response.ok) {
+        throw new Error("Failed to retrieve the authenticated user.");
+    }
+
+    // Convert the JSON response into our Me TypeScript type.
+    return (await response.json()) as Me;
+}

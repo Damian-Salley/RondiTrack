@@ -1,3 +1,6 @@
+/* Load Tailwind CSS utilities used throughout the application. */
+@import "tailwindcss";
+
 :root {
   --background: #ffffff;
   --foreground: #171717;

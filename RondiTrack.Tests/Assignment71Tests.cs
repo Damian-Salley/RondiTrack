@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using RondiTrack.Data;
 using RondiTrack.Models;
@@ -44,13 +45,14 @@ public class Assignment71Tests
     [Fact]
     public async Task Contributions_ReturnCorrectDashboardFields()
     {
-        // Arrange: Generate unique IDs to avoid conflicts
+        // Arrange: Generate a unique value to avoid conflicts
         // with other integration tests.
         var id = Random.Shared.Next(100000, 100000000);
 
-        var userId = id;
-        var stokvelId = id;
-        var cycleId = id + 1;
+        // These IDs are assigned by PostgreSQL.
+        int userId;
+        int stokvelId;
+        int cycleId;
 
         const string password = "CorrectPassword123!";
         var email = $"assignment71-{id}@example.com";
@@ -60,7 +62,7 @@ public class Assignment71Tests
             "/api/v1/auth/register",
             new
             {
-                id = userId,
+                id,
                 firstName = "Assignment",
                 lastName = "Member",
                 email,
@@ -72,18 +74,32 @@ public class Assignment71Tests
             HttpStatusCode.Created,
             registerResponse.StatusCode);
 
-        // Create the stokvel, membership, cycle and contributions
+        // Create the stokvel, membership, cycle and contribution
         // directly in the isolated test database.
         using (var scope = _factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider
                 .GetRequiredService<RondiTrackDbContext>();
 
-            db.Stokvels.Add(new Stokvel(
-                stokvelId,
-                "Assignment 7.1 Test Stokvel",
-                250m));
+            // Retrieve the actual registered user ID.
+            userId = await db.Users
+                .Where(user => user.Email == email)
+                .Select(user => user.Id)
+                .SingleAsync();
 
+            // Save the stokvel first.
+            var stokvel = new Stokvel(
+                id,
+                "Assignment 7.1 Test Stokvel",
+                250m);
+
+            db.Stokvels.Add(stokvel);
+
+            await db.SaveChangesAsync();
+
+            stokvelId = stokvel.Id;
+
+            // Create the membership using valid foreign keys.
             db.StokvelMembers.Add(new StokvelMember(
                 stokvelId,
                 userId,
@@ -92,12 +108,18 @@ public class Assignment71Tests
 
             // Deliberately use different values for cycle ID
             // and cycle number to verify their meanings.
-            db.ContributionCycles.Add(new ContributionCycle(
-                cycleId,
+            var cycle = new ContributionCycle(
+                id + 1,
                 stokvelId,
                 1,
                 250m,
-                requiredContributionAmount: 250m));
+                requiredContributionAmount: 250m);
+
+            db.ContributionCycles.Add(cycle);
+
+            await db.SaveChangesAsync();
+
+            cycleId = cycle.Id;
 
             // This timestamp is deliberately close to midnight
             // in South African time.
@@ -133,7 +155,7 @@ public class Assignment71Tests
 
         Assert.False(string.IsNullOrWhiteSpace(token));
 
-        // Request the new contribution endpoint.
+        // Request the contribution endpoint.
         using var request = new HttpRequestMessage(
             HttpMethod.Get,
             $"/api/v1/stokvels/{stokvelId}/contributions");
@@ -155,12 +177,12 @@ public class Assignment71Tests
 
         var contribution = items[0];
 
-        // The database ID must remain unchanged.
+        // The database cycle ID must remain unchanged.
         Assert.Equal(
             cycleId,
             contribution.GetProperty("cycle").GetInt32());
 
-        // The dashboard displays the human-readable number.
+        // The dashboard displays the human-readable cycle number.
         Assert.Equal(
             1,
             contribution.GetProperty("cycleNumber").GetInt32());

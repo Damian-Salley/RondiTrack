@@ -1,7 +1,11 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // Enable Cache Components for streaming and caching.
+  cacheComponents: true,
+
+  // Prefetch available page content for faster navigation.
+  partialPrefetching: true,
 };
 
 export default nextConfig;

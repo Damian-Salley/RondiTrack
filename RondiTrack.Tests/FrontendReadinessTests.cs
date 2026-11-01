@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using RondiTrack.Data;
 using RondiTrack.Models;
@@ -124,30 +125,52 @@ public class FrontendReadinessTests
             HttpStatusCode.Created,
             registerResponse.StatusCode);
 
+        int savedStokvelId;
+        int savedCycleId;
+
         // Create a stokvel and assign the user the Member role.
         using (var scope = _factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider
                 .GetRequiredService<RondiTrackDbContext>();
 
-            db.Stokvels.Add(new Stokvel(
+            // Retrieve the actual registered user ID.
+            var registeredUserId = await db.Users
+                .Where(user => user.Email == email)
+                .Select(user => user.Id)
+                .SingleAsync();
+
+            // Save the stokvel first.
+            var stokvel = new Stokvel(
                 id,
                 "CORS Authorization Test",
-                500m));
+                500m);
 
+            db.Stokvels.Add(stokvel);
+
+            await db.SaveChangesAsync();
+
+            savedStokvelId = stokvel.Id;
+
+            // Give the registered user the Member role.
             db.StokvelMembers.Add(new StokvelMember(
-                id,
-                id,
+                savedStokvelId,
+                registeredUserId,
                 "Member",
                 DateTime.UtcNow));
 
-            db.ContributionCycles.Add(new ContributionCycle(
+            // Create a valid contribution cycle.
+            var cycle = new ContributionCycle(
                 id,
-                id,
+                savedStokvelId,
                 1,
-                500m));
+                500m);
+
+            db.ContributionCycles.Add(cycle);
 
             await db.SaveChangesAsync();
+
+            savedCycleId = cycle.Id;
         }
 
         // Log in to obtain the member's access token.
@@ -169,7 +192,7 @@ public class FrontendReadinessTests
         // A regular Member cannot process payouts.
         using var request = new HttpRequestMessage(
             HttpMethod.Post,
-            $"/api/v1/stokvels/{id}/cycles/{id}/payout");
+            $"/api/v1/stokvels/{savedStokvelId}/cycles/{savedCycleId}/payout");
 
         request.Headers.Authorization =
             new AuthenticationHeaderValue("Bearer", token);
