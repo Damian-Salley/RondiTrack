@@ -161,6 +161,57 @@ export async function getRecentContributions(
     return (await response.json()) as ContributionsPage;
 }
 
+// Retrieve a page of contribution history using the selected filters.
+export async function getContributionHistory(
+    stokvelId: number,
+    filters: {
+        member: number;
+        from?: string;
+        to?: string;
+        pageToken?: string;
+    }
+): Promise<ContributionsPage> {
+
+    // Build the query parameters sent to the backend.
+    const params = new URLSearchParams();
+
+    // Filter by member only when a specific member is selected.
+    if (filters.member > 0) {
+        params.set("userId", filters.member.toString());
+    }
+
+    // The backend expects UTC timestamps.
+    // These dates must already be converted before calling this function.
+    if (filters.from) {
+        params.set("from", filters.from);
+    }
+
+    if (filters.to) {
+        params.set("to", filters.to);
+    }
+
+    // Request the next page when a pagination token is available.
+    if (filters.pageToken) {
+        params.set("pageToken", filters.pageToken);
+    }
+
+    // Request 20 contributions per page.
+    params.set("pageSize", "20");
+
+    // Send the request from the server using our existing API helper.
+    const response = await apiFetch(
+        `/api/v1/stokvels/${stokvelId}/contributions?${params.toString()}`
+    );
+
+    // Stop if the backend rejects the request.
+    if (!response.ok) {
+        throw new Error("Failed to load contribution history.");
+    }
+
+    // Return the contributions and the next-page token.
+    return (await response.json()) as ContributionsPage;
+}
+
 // Represents the authenticated user returned by GET /api/v1/me.
 export interface Me {
     id: number;

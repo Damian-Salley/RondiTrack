@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { NuqsAdapter } from "nuqs/adapters/next/app";
 import "./globals.css";
+import QueryProvider from "@/app/components/QueryProvider";
+import PinnedStokvelProvider from "@/app/components/PinnedStokvelProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -20,7 +23,15 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
-      <body>{children}</body>
+      <body>
+        <NuqsAdapter>
+          <QueryProvider>
+            <PinnedStokvelProvider>
+              {children}
+            </PinnedStokvelProvider>
+          </QueryProvider>
+        </NuqsAdapter>
+      </body>
     </html>
   );
 }

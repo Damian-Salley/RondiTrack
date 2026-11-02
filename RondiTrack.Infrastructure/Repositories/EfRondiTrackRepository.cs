@@ -251,6 +251,8 @@ public class EfRondiTrackRepository : IRondiTrackRepository
             int stokvelId,
             int cycleId,
             ContributionPageRequest request)
+
+
     {
         const int defaultPageSize = 20;
         const int maximumPageSize = 100;
@@ -298,6 +300,8 @@ public class EfRondiTrackRepository : IRondiTrackRepository
                     "The page token cannot be used with different filter or sort values.");
             }
         }
+
+
 
         var query = _context.Contributions
             .Where(contribution =>
@@ -400,6 +404,245 @@ public class EfRondiTrackRepository : IRondiTrackRepository
         };
     }
 
+
+
+    // Gets contribution history across every cycle, newest payment first.
+    public async Task<PagedResponse<ContributionResponse>> GetContributionHistoryAsync(
+        int stokvelId,
+        ContributionPageRequest request)
+    {
+        const int defaultPageSize = 20;
+        const int maximumPageSize = 100;
+
+        if (request.PageSize < 0)
+            throw new ArgumentException("Page size cannot be negative.");
+
+        if (request.UserId is <= 0)
+            throw new ArgumentException("UserId must be positive.");
+
+        if ((request.From.HasValue && request.From.Value.Kind != DateTimeKind.Utc) ||
+            (request.To.HasValue && request.To.Value.Kind != DateTimeKind.Utc))
+            throw new ArgumentException("Date boundaries must be UTC.");
+
+        if (request.From.HasValue && request.To.HasValue &&
+            request.From.Value >= request.To.Value)
+            throw new ArgumentException("From must be earlier than To.");
+
+        var pageSize = request.PageSize is null or 0
+            ? defaultPageSize
+            : Math.Min(request.PageSize.Value, maximumPageSize);
+
+        ContributionHistoryToken? token = null;
+        if (!string.IsNullOrWhiteSpace(request.PageToken))
+        {
+            token = ContributionHistoryToken.Decode(request.PageToken);
+            if (token is null ||
+                token.StokvelId != stokvelId ||
+                token.UserId != request.UserId ||
+                token.From != request.From ||
+                token.To != request.To ||
+                token.LastPaidAtUtc is null ||
+                token.LastPaidAtUtc.Value.Kind != DateTimeKind.Utc ||
+                token.LastCycle <= 0 ||
+                token.LastUserId <= 0)
+            {
+                throw new ArgumentException(
+                    "The page token is invalid or does not match the filters.");
+            }
+        }
+
+        // A payment history only contains contributions with a payment time.
+        var query = _context.Contributions.AsNoTracking()
+            .Where(contribution =>
+                contribution.StokvelId == stokvelId &&
+                contribution.PaidAtUtc != null);
+
+        if (request.UserId.HasValue)
+            query = query.Where(contribution =>
+                contribution.UserId == request.UserId.Value);
+
+        if (request.From.HasValue)
+            query = query.Where(contribution =>
+                contribution.PaidAtUtc >= request.From.Value);
+
+        if (request.To.HasValue)
+            query = query.Where(contribution =>
+                contribution.PaidAtUtc < request.To.Value);
+
+        if (token is not null)
+        {
+            var lastPaidAtUtc = token.LastPaidAtUtc;
+            var lastCycle = token.LastCycle;
+            var lastUserId = token.LastUserId;
+
+            query = query.Where(contribution =>
+                contribution.PaidAtUtc < lastPaidAtUtc ||
+                (contribution.PaidAtUtc == lastPaidAtUtc &&
+                 contribution.Cycle < lastCycle) ||
+                (contribution.PaidAtUtc == lastPaidAtUtc &&
+                 contribution.Cycle == lastCycle &&
+                 contribution.UserId < lastUserId));
+        }
+
+        // Cycle + user ID break timestamp ties deterministically.
+        var results = await query
+            .OrderByDescending(contribution => contribution.PaidAtUtc)
+            .ThenByDescending(contribution => contribution.Cycle)
+            .ThenByDescending(contribution => contribution.UserId)
+            .Select(contribution => new ContributionResponse
+            {
+                UserId = contribution.UserId,
+                StokvelId = contribution.StokvelId,
+                Cycle = contribution.Cycle,
+                CycleNumber = _context.ContributionCycles
+                    .Where(cycle => cycle.Id == contribution.Cycle)
+                    .Select(cycle => cycle.Number)
+                    .FirstOrDefault(),
+                ContributionAmount = contribution.ContributionAmount,
+                AmountCents = (long)(contribution.ContributionAmount * 100m),
+                Status = contribution.Status,
+                PaidAtUtc = contribution.PaidAtUtc,
+                MemberName = contribution.Member.User.FirstName + " " +
+                             contribution.Member.User.LastName
+            })
+            .Take(pageSize + 1)
+            .ToListAsync();
+
+        var hasMore = results.Count > pageSize;
+        var items = results.Take(pageSize).ToList();
+
+        string? nextPageToken = null;
+        if (hasMore)
+        {
+            var last = items[^1];
+            nextPageToken = new ContributionHistoryToken
+            {
+                LastPaidAtUtc = last.PaidAtUtc,
+                LastCycle = last.Cycle,
+                LastUserId = last.UserId,
+                StokvelId = stokvelId,
+                UserId = request.UserId,
+                From = request.From,
+                To = request.To
+            }.Encode();
+        }
+
+        return new PagedResponse<ContributionResponse>
+        {
+            Items = items,
+            NextPageToken = nextPageToken
+        };
+    }
+
+
+    // Returns recent payments across all stokvels the user belongs to.
+    public async Task<PagedResponse<ContributionResponse>> GetActivityAsync(
+        int userId,
+        int pageSize,
+        string? pageToken)
+    {
+        // Keep page sizes within the supported range.
+        if (userId <= 0 || pageSize < 1 || pageSize > 100)
+            throw new ArgumentException("Invalid user ID or page size.");
+
+        ActivityPageToken? token = null;
+
+        if (!string.IsNullOrWhiteSpace(pageToken))
+        {
+            token = ActivityPageToken.Decode(pageToken);
+
+            // Reject invalid cursors or cursors belonging to another user.
+            if (token is null ||
+                token.UserId != userId ||
+                token.LastPaidAtUtc.Kind != DateTimeKind.Utc ||
+                token.LastStokvelId <= 0 ||
+                token.LastCycle <= 0 ||
+                token.LastUserId <= 0)
+            {
+                throw new ArgumentException("Invalid activity page token.");
+            }
+        }
+
+        // Only include payments from stokvels where this user is a member.
+        var query = _context.Contributions
+            .AsNoTracking()
+            .Where(contribution =>
+                contribution.PaidAtUtc != null &&
+                _context.StokvelMembers.Any(member =>
+                    member.StokvelId == contribution.StokvelId &&
+                    member.UserId == userId));
+
+        if (token is not null)
+        {
+            var lastPaidAtUtc = token.LastPaidAtUtc;
+            var lastStokvelId = token.LastStokvelId;
+            var lastCycle = token.LastCycle;
+            var lastUserId = token.LastUserId;
+
+            // Continue after the last item using the same ordering as below.
+            query = query.Where(contribution =>
+                contribution.PaidAtUtc < lastPaidAtUtc ||
+                (contribution.PaidAtUtc == lastPaidAtUtc &&
+                 contribution.StokvelId < lastStokvelId) ||
+                (contribution.PaidAtUtc == lastPaidAtUtc &&
+                 contribution.StokvelId == lastStokvelId &&
+                 contribution.Cycle < lastCycle) ||
+                (contribution.PaidAtUtc == lastPaidAtUtc &&
+                 contribution.StokvelId == lastStokvelId &&
+                 contribution.Cycle == lastCycle &&
+                 contribution.UserId < lastUserId));
+        }
+
+        // Fetch one extra item to determine whether another page exists.
+        var results = await query
+            .OrderByDescending(contribution => contribution.PaidAtUtc)
+            .ThenByDescending(contribution => contribution.StokvelId)
+            .ThenByDescending(contribution => contribution.Cycle)
+            .ThenByDescending(contribution => contribution.UserId)
+            .Select(contribution => new ContributionResponse
+            {
+                UserId = contribution.UserId,
+                StokvelId = contribution.StokvelId,
+                Cycle = contribution.Cycle,
+                CycleNumber = _context.ContributionCycles
+                    .Where(cycle => cycle.Id == contribution.Cycle)
+                    .Select(cycle => cycle.Number)
+                    .FirstOrDefault(),
+                ContributionAmount = contribution.ContributionAmount,
+                AmountCents = (long)(contribution.ContributionAmount * 100m),
+                Status = contribution.Status,
+                PaidAtUtc = contribution.PaidAtUtc,
+                MemberName = contribution.Member.User.FirstName + " " +
+                             contribution.Member.User.LastName
+            })
+            .Take(pageSize + 1)
+            .ToListAsync();
+
+        var hasMore = results.Count > pageSize;
+        var items = results.Take(pageSize).ToList();
+
+        string? nextPageToken = null;
+
+        if (hasMore)
+        {
+            var last = items[^1];
+
+            nextPageToken = new ActivityPageToken
+            {
+                LastPaidAtUtc = last.PaidAtUtc!.Value,
+                LastStokvelId = last.StokvelId,
+                LastCycle = last.Cycle,
+                LastUserId = last.UserId,
+                UserId = userId
+            }.Encode();
+        }
+
+        return new PagedResponse<ContributionResponse>
+        {
+            Items = items,
+            NextPageToken = nextPageToken
+        };
+    }
     // Gets contribution response data using projection.
     public async Task<IReadOnlyCollection<ContributionResponse>>
         GetContributionResponsesByCycleAsync(

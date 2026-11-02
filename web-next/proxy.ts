@@ -9,9 +9,12 @@ import {
 import { coordinatedRefresh } from "@/lib/refresh-coordinator";
 import { shouldRefreshAccessToken } from "@/lib/token";
 
+// Routes that require an authenticated session.
 const protectedPaths = [
     "/stokvels",
     "/dashboard",
+    "/activity",
+    "/bff",
 ];
 
 function isProtectedPath(pathname: string): boolean {
@@ -45,6 +48,28 @@ function redirectToLogin(
     return response;
 }
 
+// BFF requests must return JSON errors rather than HTML redirects.
+function authenticationFailure(
+    request: NextRequest,
+    expired: boolean
+): NextResponse {
+    // API requests receive a 401 response.
+    if (request.nextUrl.pathname.startsWith("/bff/")) {
+        const response = NextResponse.json(
+            { error: "Your session has expired. Please sign in again." },
+            { status: 401 }
+        );
+
+        // Remove the invalid session cookie.
+        response.cookies.delete("session");
+
+        return response;
+    }
+
+    // Normal pages continue redirecting to login.
+    return redirectToLogin(request, expired);
+}
+
 export async function proxy(request: NextRequest) {
     const pathname = request.nextUrl.pathname;
 
@@ -56,7 +81,7 @@ export async function proxy(request: NextRequest) {
     const session = await decryptSession(encrypted);
 
     if (!session) {
-        return redirectToLogin(request, false);
+        return authenticationFailure(request, false);
     }
 
     if (!shouldRefreshAccessToken(session.accessToken)) {
@@ -68,7 +93,7 @@ export async function proxy(request: NextRequest) {
     );
 
     if (!updatedSession) {
-        return redirectToLogin(request, true);
+        return authenticationFailure(request, true);
     }
 
     const updatedCookie = await encryptSession(updatedSession);
@@ -115,5 +140,7 @@ export const config = {
     matcher: [
         "/stokvels/:path*",
         "/dashboard/:path*",
+        "/activity/:path*",
+        "/bff/:path*",
     ],
 };

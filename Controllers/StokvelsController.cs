@@ -304,7 +304,7 @@ public class StokvelsController : ControllerBase
     int stokvelId,
     int cycleId,
     RecordCycleContributionRequest request,
-// Require an idempotency key for safe contribution retries.
+    // Require an idempotency key for safe contribution retries.
     [FromHeader(Name = "Idempotency-Key")]
     [System.ComponentModel.DataAnnotations.Required]
     string idempotencyKey)
@@ -382,47 +382,45 @@ public class StokvelsController : ControllerBase
         }
     }
     // GET /api/v1/stokvels/{stokvelId}/contributions
-    // Returns paginated contributions for the stokvel's active cycle.
+    // Returns paginated contribution history across all cycles.
     [HttpGet("{stokvelId:int}/contributions")]
     public async Task<ActionResult<PagedResponse<ContributionResponse>>>
-        GetCurrentCycleContributions(
+        GetContributionHistory(
             int stokvelId,
             [FromQuery] ContributionPageRequest request)
     {
-        // Only authenticated members can view contributions.
+        // Only authenticated stokvel members can view history.
         var accessFailure = await CheckAccessAsync(stokvelId);
 
         if (accessFailure is not null)
             return accessFailure;
 
-        // Retrieve the existing contribution cycles.
-        var cycles = await _repository.GetContributionCyclesAsync();
-
-        // Find the active cycle for this stokvel.
-        var activeCycle = cycles.FirstOrDefault(cycle =>
-            cycle.StokvelId == stokvelId &&
-            cycle.Status == "Active");
-
-        // Return an empty page if there is no active cycle.
-        if (activeCycle is null)
+        // If filtering by member, verify that the member belongs
+        // to this stokvel.
+        if (request.UserId.HasValue)
         {
-            return Ok(new PagedResponse<ContributionResponse>
+            if (request.UserId.Value <= 0)
             {
-                Items = new List<ContributionResponse>(),
-                NextPageToken = null
-            });
+                return BadRequest(new ProblemDetails
+                {
+                    Status = StatusCodes.Status400BadRequest,
+                    Title = "Invalid member filter"
+                });
+            }
+
+            var member = await _repository.GetMemberForContributionAsync(
+                stokvelId,
+                request.UserId.Value);
+
+            if (member is null)
+                return NotFound();
         }
 
         try
         {
-            // IMPORTANT:
-            // Contributions reference the cycle's database ID,
-            // not its displayed cycle number.
-            var response =
-                await _service.GetPagedContributionResponsesByCycleAsync(
-                    stokvelId,
-                    activeCycle.Id,
-                    request);
+            var response = await _service.GetContributionHistoryAsync(
+                stokvelId,
+                request);
 
             return Ok(response);
         }
@@ -431,7 +429,7 @@ public class StokvelsController : ControllerBase
             return BadRequest(new ProblemDetails
             {
                 Status = StatusCodes.Status400BadRequest,
-                Title = "Invalid paging request",
+                Title = "Invalid contribution history request",
                 Detail = exception.Message
             });
         }

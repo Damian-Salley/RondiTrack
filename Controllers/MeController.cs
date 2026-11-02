@@ -5,6 +5,8 @@ using RondiTrack.DTOs.Me;
 using RondiTrack.Repositories;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using RondiTrack.DTOs.Contributions;
+using RondiTrack.DTOs.Pagination;
 
 namespace RondiTrack.Controllers;
 
@@ -50,6 +52,40 @@ public class MeController : ControllerBase
             user.LastName,
             user.Email
         ));
+    }
+
+    // Returns recent contributions across the authenticated user's stokvels.
+    [HttpGet("activity")]
+    public async Task<ActionResult<PagedResponse<ContributionResponse>>> GetActivity(
+        [FromQuery] int pageSize = 20,
+        [FromQuery] string? pageToken = null)
+    {
+        // Identify the authenticated user from their JWT.
+        var claim = User.FindFirstValue(JwtRegisteredClaimNames.Sub)
+            ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (!int.TryParse(claim, out var userId))
+            return Unauthorized();
+
+        // Reject invalid page sizes before querying the database.
+        if (pageSize < 1 || pageSize > 100)
+            return BadRequest("Page size must be between 1 and 100.");
+
+        try
+        {
+            // The repository handles membership checks, ordering and pagination.
+            var result = await _repository.GetActivityAsync(
+                userId,
+                pageSize,
+                pageToken);
+
+            return Ok(result);
+        }
+        catch (ArgumentException)
+        {
+            // Invalid pagination tokens should produce HTTP 400.
+            return BadRequest("Invalid activity pagination request.");
+        }
     }
 
     // Return the authenticated user's home-screen information.

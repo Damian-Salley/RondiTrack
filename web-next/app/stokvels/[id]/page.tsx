@@ -13,6 +13,9 @@ import {
 import RecentContributions from "./RecentContributions";
 // Import the client form used to record contributions.
 import ContributionForm from "@/app/components/ContributionForm";
+import PinStokvelButton from "@/app/components/PinStokvelButton";
+
+
 
 export default function StokvelDetailsPage({
     params,
@@ -80,6 +83,13 @@ async function StokvelDetailsContent({
         <>
             <div className="mb-8">
                 <h1 className="text-3xl font-bold">{stokvel.name}</h1>
+
+                <div className="mt-3">
+                    <PinStokvelButton
+                        id={stokvel.id}
+                        name={stokvel.name}
+                    />
+                </div>
 
                 <p className="mt-2 text-gray-500">
                     View your stokvel information and contributions.

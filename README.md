@@ -2736,3 +2736,392 @@ web-next/
 Assignment 8.2 will extend this application with additional features, including improved session refresh handling, contribution submission, and streaming server-rendered content.
 
 The existing React/Vite frontend remains available in `web/`.
+
+
+
+
+
+
+======================================================================================================================================
+
+
+
+
+
+# Assignment 8.3 — Contribution History, Activity Feed and Pinned Stokvels
+
+## 1. API Check
+
+The backend provides contribution history and activity feed endpoints.
+
+### Contribution History
+
+**Endpoint:**
+
+`GET /api/v1/stokvels/{id}/contributions`
+
+The endpoint supports:
+
+* Filtering contributions by stokvel member.
+* Filtering contributions by a UTC date range.
+* Limiting the number of returned records using `pageSize`.
+* Loading additional records using an opaque `pageToken`.
+* Returning contributions in a consistent order for pagination.
+
+The frontend accesses contribution history through the authenticated backend API and a same-site BFF route.
+
+**Frontend BFF endpoint:**
+
+`GET /bff/stokvels/{id}/contributions`
+
+The BFF reads the user's session on the server and forwards requests to the backend.
+
+### Activity Feed
+
+**Backend endpoint:**
+
+`GET /api/v1/me/activity`
+
+**Frontend BFF endpoint:**
+
+`GET /bff/me/activity`
+
+The activity feed combines contributions from the authenticated user's stokvels and displays them newest first.
+
+The activity feed was tested successfully in the browser.
+
+### Pagination
+
+Both contribution history and activity feed requests use:
+
+* `pageSize` to control the number of records returned.
+* `pageToken` to request the next page.
+* A continuation token returned by the backend.
+
+The token is treated as opaque. The frontend does not attempt to decode or construct it.
+
+**Verification limitation:** The activity feed was tested with a small number of contributions. Pagination beyond the first 20 records has not yet been verified with a larger dataset.
+
+---
+
+## 2. Where Each Piece of State Lives
+
+Different types of application state are stored in different places.
+
+| State                         | Location                          | Reason                                                                 |
+| ----------------------------- | --------------------------------- | ---------------------------------------------------------------------- |
+| Logged-in user session        | Server-side session cookie        | Keeps authentication information out of client-side application state. |
+| Selected member filter        | URL query parameters using nuqs   | Filters remain shareable and survive page refreshes.                   |
+| Selected date filters         | URL query parameters using nuqs   | Ensures the URL represents the selected contribution history view.     |
+| Initial contribution history  | Next.js Server Component          | Loads the first page on the server.                                    |
+| Additional contribution pages | TanStack Query                    | Handles pagination, loading states and cached server data.             |
+| Activity feed pages           | TanStack Query                    | Manages infinite scrolling and subsequent page requests.               |
+| Pinned stokvels               | Zustand with browser localStorage | Preserves the user's selected pins across page refreshes.              |
+| Pin hydration status          | Zustand provider                  | Prevents interactions before persisted pins finish loading.            |
+
+This separation avoids storing the same information unnecessarily in multiple places.
+
+---
+
+## 3. Filters — nuqs
+
+The contribution history page uses **nuqs 2.10.2** to manage filters through URL query parameters.
+
+Supported filters:
+
+* `member` — filters contributions by member.
+* `from` — specifies the starting calendar date.
+* `to` — specifies the ending calendar date.
+
+### Invalid Query Parameters
+
+The application validates query parameters before using them.
+
+Examples of invalid parameters:
+
+* `member=banana`
+* `from=2026-02-30`
+* `to=yesterday`
+
+Invalid values fall back to their default filter values rather than crashing the application.
+
+This was verified using:
+
+`/stokvels/9002/contributions?from=2026-02-30&to=yesterday&member=banana`
+
+The page loaded successfully without errors.
+
+### URL Synchronisation
+
+Filter controls update the URL using nuqs.
+
+The contribution history is refreshed when the selected filters change.
+
+The application uses URL-based filters instead of keeping separate, unsynchronised filter values in component state.
+
+### Browser History
+
+Filter changes use history replacement to avoid creating a separate browser history entry for every filter adjustment.
+
+This keeps navigation predictable while preserving the selected filters in the URL.
+
+### Resetting Filters
+
+Clearing the filters restores the default contribution history view.
+
+The member filter, date filters and reset functionality were tested successfully in the browser.
+
+---
+
+## 4. Dates — South African Time
+
+South Africa uses South African Standard Time (SAST), which is UTC+02:00.
+
+The application converts selected South African calendar dates into UTC boundaries before requesting contributions from the backend.
+
+### Conversion Function
+
+`lib/south-african-dates.ts`
+
+**Function:**
+
+`southAfricanDaysToUtcRange(from, to)`
+
+The function converts a selected date range into a half-open UTC interval:
+
+`[from, to)`
+
+This means:
+
+* The starting instant is included.
+* The ending instant is excluded.
+
+For example, selecting October 1–31, 2026, represents:
+
+**Start:** `2026-09-30T22:00:00Z`
+
+**End:** `2026-10-31T22:00:00Z`
+
+This includes the entire South African calendar month of October without accidentally including November 1.
+
+### Date Validation
+
+The conversion function handles:
+
+* Complete date ranges.
+* Single-day selections.
+* Start dates without end dates.
+* End dates without start dates.
+* Impossible calendar dates.
+* Reversed date ranges.
+
+### Timezone-Independent Tests
+
+The date conversion tests were executed using two different timezone environments.
+
+**UTC command:**
+
+`TZ=UTC npm test -- south-african-dates`
+
+**Result:**
+
+```text
+Test Files  1 passed (1)
+Tests       8 passed (8)
+```
+
+**South African timezone command:**
+
+`TZ=Africa/Johannesburg npm test -- south-african-dates`
+
+**Result:**
+
+```text
+Test Files  1 passed (1)
+Tests       8 passed (8)
+```
+
+All eight tests passed in both environments.
+
+The tests verify that:
+
+1. October 2026 converts to the correct UTC boundaries.
+2. October 31 at 23:30 SAST is included.
+3. November 1 at 00:00 SAST is excluded.
+4. A single selected day is handled correctly.
+5. A start date without an end date is supported.
+6. An end date without a start date is supported.
+7. Impossible calendar dates are rejected.
+8. Reversed date ranges are rejected.
+
+---
+
+## 5. Paging — TanStack Query
+
+The application uses **TanStack Query 5.104.2** for client-side pagination.
+
+### Contribution History
+
+The contribution history page initially loads data on the server.
+
+Additional contribution records are requested through the BFF using TanStack Query.
+
+The selected filters are included in the query key so different filter combinations are treated as separate queries.
+
+This prevents previously loaded contributions from being incorrectly reused for another filter combination.
+
+### Activity Feed
+
+The `/activity` page displays contributions from the authenticated user's stokvels.
+
+The activity feed:
+
+* Loads the initial page on the server.
+* Requests additional pages using `useInfiniteQuery`.
+* Uses the backend continuation token to identify the next page.
+* Supports automatic loading through an `IntersectionObserver`.
+* Provides a manual **Load more** button.
+* Displays loading and end-of-results information.
+
+### Page Tokens
+
+The first page does not require a continuation token.
+
+When another page is available, the backend returns a token.
+
+TanStack Query uses that token as the next `pageParam`.
+
+When no continuation token remains, no further page is requested.
+
+### Verification
+
+Contribution history filtering and the activity feed were tested successfully in the browser.
+
+**Known testing gap:** Pagination beyond 20 records has not yet been tested with a sufficiently large dataset.
+
+---
+
+## 6. Pinned Stokvels — Zustand
+
+The application uses **Zustand 5.0.15** to manage pinned stokvels.
+
+Users can pin frequently accessed stokvels and access them through a pinned sidebar.
+
+### Stored Information
+
+Each pinned stokvel contains only:
+
+* Stokvel ID.
+* Stokvel name.
+
+No authentication tokens or sensitive financial information are stored in the pin state.
+
+### Store Architecture
+
+The Zustand store is created using a store factory.
+
+A React provider creates one store instance for its provider tree.
+
+This avoids using a module-level singleton store for application state.
+
+### Persistence
+
+Pins are persisted using Zustand's persistence middleware and browser `localStorage`.
+
+This allows pins to remain available after a page refresh.
+
+### Hydration
+
+Persistence uses `skipHydration`, allowing the application to control when saved pins are loaded.
+
+The provider explicitly rehydrates the store in a client-side effect.
+
+The pin button waits until hydration is complete before allowing interactions.
+
+This prevents mismatches between server-rendered HTML and the browser's initial render.
+
+### Authentication Cleanup
+
+Pinned stokvels are cleared when the user signs out.
+
+The login page also clears previously stored pins after hydration.
+
+This prevents pins from a previous session from being retained after signing out and signing back in.
+
+### Membership Synchronisation
+
+The application compares stored pins against the authenticated user's stokvel list.
+
+Pins referencing stokvels no longer present in that list are removed.
+
+This prevents outdated pins from remaining in the sidebar after the membership list is synchronised.
+
+### Browser Verification
+
+The following behaviours were tested successfully:
+
+1. Pinning a stokvel.
+2. Displaying the pinned stokvel in the sidebar.
+3. Preserving pins after refreshing the page.
+4. Unpinning a stokvel.
+5. Clearing pins after signing out and signing back in.
+
+---
+
+## 7. Validation and Test Results
+
+The following checks were completed successfully.
+
+| Check                                                  | Result               |
+| ------------------------------------------------------ | -------------------- |
+| Automated tests                                        | 14 passed            |
+| South African date tests with `TZ=UTC`                 | 8 passed             |
+| South African date tests with `TZ=Africa/Johannesburg` | 8 passed             |
+| ESLint                                                 | 0 errors, 0 warnings |
+| TypeScript                                             | Passed               |
+| Next.js production build                               | Passed               |
+| npm security audit                                     | 0 vulnerabilities    |
+| Contribution member filter                             | Passed browser test  |
+| Contribution date filters                              | Passed browser test  |
+| Contribution filter reset                              | Passed browser test  |
+| Invalid query parameters                               | Passed browser test  |
+| Activity feed display                                  | Passed browser test  |
+| Zustand pin persistence                                | Passed browser test  |
+| Sign-out pin cleanup                                   | Passed browser test  |
+
+### Installed Dependency Versions
+
+| Package        | Version |
+| -------------- | ------- |
+| Next.js        | 16.4.3  |
+| nuqs           | 2.10.2  |
+| TanStack Query | 5.104.2 |
+| Zustand        | 5.0.15  |
+
+### Security
+
+The initial dependency audit reported 16 moderate vulnerabilities associated with transitive `minimatch` dependencies.
+
+A targeted npm override was added to resolve these findings.
+
+After reinstalling dependencies:
+
+`npm audit`
+
+**Result:**
+
+`found 0 vulnerabilities`
+
+The automated tests, ESLint checks and production build also passed after the dependency change.
+
+---
+
+## 8. Known Gaps and Limitations
+
+The following items are not claimed as fully verified:
+
+1. **Large-dataset pagination:** Loading additional contribution pages beyond the first 20 records has not been tested with a larger dataset.
+2. **Expired-session handling:** Authentication cleanup on sign-out and the login page has been implemented and tested, but all expired-session and BFF `401` scenarios have not been fully verified.
+3. **Post-contribution refresh:** Refresh behaviour across the server-rendered first page and subsequent TanStack Query pages after creating a contribution has not been fully verified.
+
+These limitations are documented to distinguish implemented functionality from functionality that has been fully tested.

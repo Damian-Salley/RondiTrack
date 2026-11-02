@@ -6,4 +6,8 @@ public class ContributionPageRequest
     public string? PageToken { get; set; }
     public string SortBy { get; set; } = "userId";
     public int? UserId { get; set; }
+
+    // UTC boundaries: From is inclusive, To is exclusive.
+    public DateTime? From { get; set; }
+    public DateTime? To { get; set; }
 }

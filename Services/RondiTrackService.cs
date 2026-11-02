@@ -344,5 +344,14 @@ public class RondiTrackService : IRondiTrackService
             cycleId,
             request);
     }
+
+    // Gets paginated contribution history across all cycles.
+    public Task<PagedResponse<ContributionResponse>> GetContributionHistoryAsync(
+        int stokvelId,
+        ContributionPageRequest request)
+    {
+        return _repository.GetContributionHistoryAsync(stokvelId, request);
+    }
+
 }
 

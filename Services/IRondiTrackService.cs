@@ -37,6 +37,11 @@ public interface IRondiTrackService
             int cycleId,
             ContributionPageRequest request);
 
+    // Gets paginated contribution history across all cycles.
+    Task<PagedResponse<ContributionResponse>> GetContributionHistoryAsync(
+        int stokvelId,
+        ContributionPageRequest request);
+
     //Payout operations
     Task<Payout> ProcessPayoutAsync(
         int stokvelId,

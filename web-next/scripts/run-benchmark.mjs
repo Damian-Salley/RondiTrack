@@ -1,5 +1,4 @@
 import { spawnSync } from "node:child_process";
-import { stdin, stdout } from "node:process";
 
 function askPassword() {
     return new Promise((resolve, reject) => {
