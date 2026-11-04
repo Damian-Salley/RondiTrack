@@ -1,11 +1,14 @@
+import Link from "next/link";
+
 // Import the type describing the paginated API response.
 import type { ContributionsPage } from "@/lib/api";
 
 // Receive an already-started request so contributions load concurrently.
 export default async function RecentContributions({
-    contributionsPromise,
+    contributionsPromise, userId, role,
 }: {
     contributionsPromise: Promise<ContributionsPage>;
+    userId: number; role: string;
 }) {
     // Wait for the request that the parent component started earlier.
     const page = await contributionsPromise;
@@ -58,6 +61,7 @@ export default async function RecentContributions({
                                 <p className="text-sm text-gray-400">
                                     {contribution.status}
                                 </p>
+                                {(contribution.userId === userId || role === "Treasurer") && <Link className="text-sm underline" href={`/stokvels/${contribution.stokvelId}/proof?cycle=${contribution.cycle}&member=${contribution.userId}`}>Proof of payment</Link>}
                             </div>
                         </div>
                     ))}

@@ -40,6 +40,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Use the system clock for time-dependent background operations.
 builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddScoped<JoinPaymentClosingService>();
 
 // Automatically close expired monthly contribution cycles.
 builder.Services.AddHostedService<MonthlyCycleClosingService>();

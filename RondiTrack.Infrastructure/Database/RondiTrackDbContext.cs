@@ -23,8 +23,20 @@ public class RondiTrackDbContext : DbContext
     // Stores refresh tokens for authenticated users.
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
+    public DbSet<JoinInvite> JoinInvites => Set<JoinInvite>();
+    public DbSet<PaymentProof> PaymentProofs => Set<PaymentProof>();
+    public DbSet<CycleCloseReceipt> CycleCloseReceipts => Set<CycleCloseReceipt>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+
+        modelBuilder.Entity<JoinInvite>().HasKey(x => x.Code);
+        modelBuilder.Entity<JoinInvite>().HasOne<Stokvel>().WithMany().HasForeignKey(x => x.StokvelId);
+        modelBuilder.Entity<PaymentProof>().HasKey(x => new { x.StokvelId, x.UserId, x.Cycle });
+        modelBuilder.Entity<PaymentProof>().HasOne<Contribution>().WithMany()
+            .HasForeignKey(x => new { x.StokvelId, x.UserId, x.Cycle });
+        modelBuilder.Entity<CycleCloseReceipt>().HasKey(x => x.CycleId);
+        modelBuilder.Entity<CycleCloseReceipt>().HasOne<ContributionCycle>().WithMany().HasForeignKey(x => x.CycleId);
 
         modelBuilder.Entity<User>()
             .HasIndex(user => user.NormalizedEmail)

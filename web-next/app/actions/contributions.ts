@@ -182,6 +182,7 @@ export async function recordContribution(
             success: false,
             message:
                 "Could not confirm the result. Retry with the same contribution details.",
+            uncertain: true,
         };
     }
 }

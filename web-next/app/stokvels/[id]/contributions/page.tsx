@@ -4,6 +4,8 @@ import { notFound } from "next/navigation";
 import ContributionHistoryList from "./ContributionHistoryList";
 
 import {
+    getMe,
+    getHomeStokvels,
     getStokvel,
     getStokvelMembers,
     getContributionHistory,
@@ -65,6 +67,9 @@ async function ContributionHistoryContent({
     if (!stokvel) {
         notFound();
     }
+
+    const [me, home] = await Promise.all([getMe(), getHomeStokvels()]);
+    const role = home.find(s => s.stokvelId === stokvelId)?.role ?? "Member";
 
     // Read and validate the contribution filters from the URL.
     const parsedFilters = await loadContributionFilters(searchParams);
@@ -128,6 +133,8 @@ async function ContributionHistoryContent({
                     from={utcRange?.from}
                     to={utcRange?.to}
                     initialPage={page}
+                    userId={me.id}
+                    role={role}
                 />
             }
 

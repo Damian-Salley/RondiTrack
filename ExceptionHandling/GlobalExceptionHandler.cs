@@ -27,6 +27,8 @@ public class GlobalExceptionHandler : IExceptionHandler
         // Determine the appropriate HTTP status code.
         var statusCode = exception switch
         {
+            WorkflowException workflow => workflow.Status,
+
             RequestValidationException =>
                 StatusCodes.Status400BadRequest,
 
@@ -86,6 +88,7 @@ public class GlobalExceptionHandler : IExceptionHandler
 
             Title = exception switch
             {
+                WorkflowException workflow => workflow.Message,
                 RequestValidationException =>
                     "Validation failed",
 
@@ -115,7 +118,7 @@ public class GlobalExceptionHandler : IExceptionHandler
             },
 
             // Use fixed messages to avoid leaking sensitive data.
-            Detail = statusCode switch
+            Detail = exception is WorkflowException workflowError ? workflowError.Message : statusCode switch
             {
                 400 => "The request is invalid.",
                 404 => "The requested resource was not found.",

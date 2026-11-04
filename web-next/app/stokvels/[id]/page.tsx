@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { notFound } from "next/navigation";
 // Import the API functions needed to load stokvel information.
 import {
+    getMe,
     getStokvel,
     getContributionCycles,
     getStokvelMembers,
@@ -13,6 +14,8 @@ import {
 import RecentContributions from "./RecentContributions";
 // Import the client form used to record contributions.
 import ContributionForm from "@/app/components/ContributionForm";
+import CreateInvite from "@/app/components/CreateInvite";
+import CloseCycle from "@/app/components/CloseCycle";
 import PinStokvelButton from "@/app/components/PinStokvelButton";
 
 
@@ -61,10 +64,11 @@ async function StokvelDetailsContent({
     const contributionsPromise = getRecentContributions(stokvelId);
 
     // Fetch the remaining information concurrently.
-    const [cycles, members, homeStokvels] = await Promise.all([
+    const [cycles, members, homeStokvels, me] = await Promise.all([
         getContributionCycles(stokvelId),
         getStokvelMembers(stokvelId),
         getHomeStokvels(),
+        getMe(),
     ]);
 
     // Find this stokvel's dashboard information.
@@ -150,6 +154,11 @@ async function StokvelDetailsContent({
                 )}
             </div>
 
+            {homeStokvel?.role === "Treasurer" && <section className="mt-6">
+                <CreateInvite stokvelId={stokvelId} />
+                {activeCycle && homeStokvel.cycleStatus === "Active" && <CloseCycle cycleId={activeCycle.id} />}
+            </section>}
+
             {/* Only display the form when an active contribution cycle exists. */}
             {activeCycle && homeStokvel?.cycleStatus === "Active" && (
                 <section className="mt-6">
@@ -169,10 +178,12 @@ async function StokvelDetailsContent({
                 </section>
             )}
 
+            <Link className="mt-6 block underline" href={`/stokvels/${stokvelId}/contributions`}>Contribution history and payment proofs</Link>
+
             {/* Load recent contributions separately from the main stokvel details. */}
             <Suspense fallback={<ContributionsLoading />}>
                 {/* Pass the already-started request to the streamed component. */}
-                <RecentContributions contributionsPromise={contributionsPromise} />
+                <RecentContributions contributionsPromise={contributionsPromise} userId={me.id} role={homeStokvel?.role ?? "Member"} />
             </Suspense>
         </>
     );

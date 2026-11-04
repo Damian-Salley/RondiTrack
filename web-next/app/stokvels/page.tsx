@@ -51,6 +51,8 @@ export default function StokvelsPage() {
                 </Link>
             </div>
 
+            <Link href="/join?step=code" className="mb-4 inline-block underline">Join with an invite code</Link>
+
             <PinnedStokvelSidebar />
 
             <Suspense fallback={<StokvelsLoading />}>

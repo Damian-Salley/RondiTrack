@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using RondiTrack.Data;
 using RondiTrack.Models;
 using RondiTrack.DTOs.Contributions;
@@ -214,8 +215,20 @@ public class EfRondiTrackRepository : IRondiTrackRepository
     // Adds a contribution to the database.
     public async Task AddContributionAsync(Contribution contribution)
     {
-        await _context.Contributions.AddAsync(contribution);
-        await _context.SaveChangesAsync();
+        await _context.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+        {
+            await using var tx = await _context.Database.BeginTransactionAsync();
+            // Synchronize with manual closes, proof changes and the monthly job.
+            await _context.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(64001)");
+            var status = await _context.ContributionCycles.AsNoTracking()
+                .Where(c => c.Id == contribution.Cycle).Select(c => c.Status).SingleAsync();
+            if (status != "Active")
+                throw new RondiTrack.Exceptions.BusinessRuleException("This cycle is closed.");
+            if (_context.Entry(contribution).State == EntityState.Detached)
+                await _context.Contributions.AddAsync(contribution);
+            await _context.SaveChangesAsync();
+            await tx.CommitAsync();
+        });
     }
 
     // Gets one specific contribution.
@@ -712,8 +725,8 @@ public class EfRondiTrackRepository : IRondiTrackRepository
             .ToListAsync();
     }
 
-    // Processes a payout and updates the contribution cycle.
-    // Processes a payout and updates the contribution cycle.
+    // Processes a payout and updates its cycle in one transaction.
+    // The shared advisory lock prevents a payout from racing with cycle closing.
     public async Task ProcessPayoutAsync(
         Payout payout,
         ContributionCycle cycle)
@@ -725,25 +738,35 @@ public class EfRondiTrackRepository : IRondiTrackRepository
             await using var transaction =
                 await _context.Database.BeginTransactionAsync();
 
-            try
+            // Wait for any contribution or closing operation using this lock.
+            // PostgreSQL releases the lock automatically when the transaction ends.
+            var connection = _context.Database.GetDbConnection();
+            await using (var command = connection.CreateCommand())
             {
-                cycle.MarkAsPaid();
-
-                _context.ContributionCycles.Update(cycle);
-                await _context.SaveChangesAsync();
-
-                await _context.Payouts.AddAsync(payout);
-                await _context.SaveChangesAsync();
-
-                await transaction.CommitAsync();
-            }
-            catch
-            {
-                await transaction.RollbackAsync();
-                throw;
+                command.Transaction = transaction.GetDbTransaction();
+                command.CommandText = "SELECT pg_advisory_xact_lock(64001)";
+                await command.ExecuteScalarAsync();
             }
 
+            // Read the current database status AFTER acquiring the lock.
+            // The cycle passed into this method might be stale.
+            var currentStatus = await _context.ContributionCycles
+                .AsNoTracking()
+                .Where(c => c.Id == cycle.Id)
+                .Select(c => c.Status)
+                .SingleOrDefaultAsync();
 
+            if (currentStatus != "Active")
+                throw new RondiTrack.Exceptions.BusinessRuleException(
+                    "Only an active contribution cycle can be paid out.");
+
+            // Apply the payout to the tracked cycle and save both changes together.
+            cycle.MarkAsPaid();
+            _context.ContributionCycles.Update(cycle);
+            await _context.Payouts.AddAsync(payout);
+            await _context.SaveChangesAsync();
+
+            await transaction.CommitAsync();
         });
     }
 

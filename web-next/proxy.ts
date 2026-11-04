@@ -11,6 +11,7 @@ import { shouldRefreshAccessToken } from "@/lib/token";
 
 // Routes that require an authenticated session.
 const protectedPaths = [
+    "/join",
     "/stokvels",
     "/dashboard",
     "/activity",
@@ -138,6 +139,7 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
     matcher: [
+        "/join/:path*",
         "/stokvels/:path*",
         "/dashboard/:path*",
         "/activity/:path*",

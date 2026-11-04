@@ -236,10 +236,12 @@ public class RondiTrackService : IRondiTrackService
                     "The contribution cycle does not belong to this stokvel.");
             }
 
-            if (cycle.Status == "Paid")
+            // Only active cycles can be paid out. Closed cycles must also be rejected.
+            // The repository rechecks this inside its locked transaction to prevent races.
+            if (cycle.Status != "Active")
             {
                 throw new BusinessRuleException(
-                    "This contribution cycle has already been paid out.");
+                    "Only an active contribution cycle can be paid out.");
             }
 
             var members = stokvel.Members
@@ -354,4 +356,3 @@ public class RondiTrackService : IRondiTrackService
     }
 
 }
-

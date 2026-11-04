@@ -1,27 +1,27 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+
 using RondiTrack.Data;
 using RondiTrack.Models;
-// Provides access to the database transaction used by PostgreSQL commands.
-using Microsoft.EntityFrameworkCore.Storage;
 
 namespace RondiTrack.BackgroundServices;
 
-// Background service responsible for automatically closing expired contribution cycles.
+// Automatically closes expired contribution cycles and records arrears.
 public class MonthlyCycleClosingService : BackgroundService
 {
-    // Creates dependency injection scopes so we can access the database safely.
+    // Creates dependency injection scopes for database operations.
     private readonly IServiceScopeFactory _scopeFactory;
 
-    // Provides the current time and allows us to control time during testing.
+    // Provides the current time and supports controlled testing.
     private readonly TimeProvider _timeProvider;
 
-    // Records information and errors while the background service runs.
+    // Records background processing information and failures.
     private readonly ILogger<MonthlyCycleClosingService> _logger;
 
-    // Constructor: receives the services needed to perform monthly cycle closing.
+    // Receive the dependencies needed by the background service.
     public MonthlyCycleClosingService(
         IServiceScopeFactory scopeFactory,
         TimeProvider timeProvider,
@@ -32,153 +32,162 @@ public class MonthlyCycleClosingService : BackgroundService
         _logger = logger;
     }
 
-    // Runs when the application starts and checks for expired cycles every hour.
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    // Start immediately and repeat the closing check every hour.
+    protected override async Task ExecuteAsync(
+        CancellationToken stoppingToken)
     {
-        // Check immediately on startup to catch cycles missed while the API was offline.
+        // Process cycles missed while the application was offline.
         await TryCloseExpiredCyclesAsync(stoppingToken);
 
-        // Use TimeProvider so the timer can be controlled in automated tests.
+        // Use TimeProvider so tests can control timer behaviour.
         using var timer = new PeriodicTimer(
             TimeSpan.FromHours(1),
             _timeProvider);
 
         try
         {
-            // Continue checking every hour until the application shuts down.
+            // Continue checking until the application shuts down.
             while (await timer.WaitForNextTickAsync(stoppingToken))
             {
                 await TryCloseExpiredCyclesAsync(stoppingToken);
             }
         }
-        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        catch (OperationCanceledException)
+            when (stoppingToken.IsCancellationRequested)
         {
-            // Cancellation is expected when the application shuts down.
+            // Application shutdown is expected, not an error.
         }
     }
 
-    // Allows integration tests to trigger cycle closing directly.
-    // The background service still calls this method automatically in production.
-    public async Task TryCloseExpiredCyclesAsync(CancellationToken cancellationToken)
+    // Run the closing operation and log unexpected failures.
+    // Public so integration tests can trigger the operation.
+    public async Task TryCloseExpiredCyclesAsync(
+        CancellationToken cancellationToken)
     {
         try
         {
             await CloseExpiredCyclesAsync(cancellationToken);
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException)
+            when (cancellationToken.IsCancellationRequested)
         {
             // Allow normal application shutdown.
         }
         catch (Exception ex)
         {
-            // Log the error so the service can try again on its next scheduled check.
+            // Log the failure so it can be investigated.
+            // The next scheduled run can retry the operation.
             _logger.LogError(
                 ex,
                 "An error occurred while closing expired contribution cycles.");
         }
     }
 
-    // Public so integration tests can execute the monthly closing logic directly.
-    // The background service will continue running automatically in production.
-    public async Task CloseExpiredCyclesAsync(CancellationToken cancellationToken)
+    // Find expired active cycles, calculate arrears and close them.
+    public async Task CloseExpiredCyclesAsync(
+        CancellationToken cancellationToken)
     {
-        // Create a new dependency injection scope for database access.
+        // Create a scope to obtain the EF Core execution strategy.
         using var scope = _scopeFactory.CreateScope();
 
         var db = scope.ServiceProvider
             .GetRequiredService<RondiTrackDbContext>();
 
-        // EF Core's execution strategy retries temporary database failures.
+        // Retry the operation when EF Core detects a transient failure.
         var strategy = db.Database.CreateExecutionStrategy();
 
         await strategy.ExecuteAsync(async () =>
         {
-            // Use a fresh DbContext for each retry attempt.
-            // This avoids reusing tracked changes from a failed transaction.
+            // Each retry receives a fresh DbContext.
+            // This avoids reusing tracked changes from a failed attempt.
             using var retryScope = _scopeFactory.CreateScope();
 
             var retryDb = retryScope.ServiceProvider
                 .GetRequiredService<RondiTrackDbContext>();
 
-            // Start a transaction so all changes succeed or fail together.
+            // Start a transaction so arrears and cycle status
+            // are committed together.
             await using var transaction =
-                await retryDb.Database.BeginTransactionAsync(cancellationToken);
+                await retryDb.Database.BeginTransactionAsync(
+                    cancellationToken);
 
-            // Obtain a PostgreSQL transaction-level advisory lock.
-            // Other service instances using this lock must wait until it is released.
+            // Obtain the shared PostgreSQL advisory lock.
             //
-            // ExecuteScalarAsync is used because PostgreSQL's advisory-lock
-            // function returns a value, rather than an affected-row count.
+            // Other operations using this same lock must wait,
+            // preventing conflicting changes during closing.
             var connection = retryDb.Database.GetDbConnection();
 
             await using (var command = connection.CreateCommand())
             {
                 command.Transaction = transaction.GetDbTransaction();
-                command.CommandText = "SELECT pg_advisory_xact_lock(64001)";
 
+                command.CommandText =
+                    "SELECT pg_advisory_xact_lock(64001)";
+
+                // Advisory lock functions return a value,
+                // so ExecuteScalarAsync is appropriate.
                 await command.ExecuteScalarAsync(cancellationToken);
             }
 
-            // Get the current UTC time from the injected TimeProvider.
+            // Obtain the current UTC time.
             var now = _timeProvider.GetUtcNow().UtcDateTime;
 
-            // Find contribution cycles whose closing dates have passed.
-            // Already-closed cycles are excluded to prevent duplicate processing.
+            // Select only active cycles whose end dates have passed.
+            //
+            // Exclude Paid cycles and cycles already closed.
+            // This prevents unnecessary or duplicate arrears processing.
             var expiredCycles = await retryDb.ContributionCycles
-                .Where(c => c.ClosedAtUtc == null && c.EndsAtUtc <= now)
+                .Where(c =>
+                    c.Status == "Active" &&
+                    c.ClosedAtUtc == null &&
+                    c.EndsAtUtc <= now)
                 .ToListAsync(cancellationToken);
 
             foreach (var cycle in expiredCycles)
             {
-                // Find every member belonging to this stokvel.
+                // Retrieve all members belonging to the stokvel.
                 var members = await retryDb.StokvelMembers
                     .Where(m => m.StokvelId == cycle.StokvelId)
                     .ToListAsync(cancellationToken);
 
-                // Find contributions recorded for the current cycle.
+                // Retrieve contributions recorded for this cycle.
                 var contributions = await retryDb.Contributions
-                    .Where(c => c.StokvelId == cycle.StokvelId &&
-                                c.Cycle == cycle.Id)
+                    .Where(c =>
+                        c.StokvelId == cycle.StokvelId &&
+                        c.Cycle == cycle.Id)
                     .ToListAsync(cancellationToken);
 
+                // Calculate outstanding contributions for each member.
                 foreach (var member in members)
                 {
-                    // Calculate the amount this member has already contributed.
-                    var paid = contributions
-                        .Where(c => c.UserId == member.UserId)
-                        .Sum(c => c.ContributionAmount);
+                    // Reuse the same calculation as manual cycle closing.
+                    var amountCents = CycleClosing.OutstandingCents(
+                        cycle,
+                        member.UserId,
+                        contributions);
 
-                    // Use the per-member contribution amount saved when the cycle was created.
-                    // This prevents future changes to the stokvel's contribution amount
-                    // from affecting historical arrears calculations.
-                    var outstanding = Math.Max(
-                        0m,
-                        cycle.RequiredContributionAmount - paid);
-
-                    // Convert the outstanding amount from rands to integer cents.
-                    var amountCents = checked((long)(outstanding * 100m));
-
-                    // Only create an arrears record when the member owes money.
+                    // Only create arrears when the member owes money.
                     if (amountCents > 0)
                     {
-                        retryDb.CycleArrears.Add(new CycleArrears(
-                            cycle.Id,
-                            member.UserId,
-                            amountCents));
+                        retryDb.CycleArrears.Add(
+                            new CycleArrears(
+                                cycle.Id,
+                                member.UserId,
+                                amountCents));
                     }
                 }
 
-                // Mark the cycle as closed using the injected current time.
+                // Mark the cycle as closed at the current UTC time.
                 cycle.Close(now);
             }
 
-            // Save the arrears records and cycle statuses together.
+            // Save arrears records and cycle statuses together.
             await retryDb.SaveChangesAsync(cancellationToken);
 
-            // Commit the transaction only after all database changes succeed.
+            // Commit the transaction only after successful saving.
             await transaction.CommitAsync(cancellationToken);
 
-            // Record how many cycles were processed successfully.
+            // Log the number of cycles processed.
             _logger.LogInformation(
                 "Monthly cycle closing completed. Processed {Count} cycles.",
                 expiredCycles.Count);

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 
@@ -14,13 +15,14 @@ type Props = {
     from?: string;
     to?: string;
     initialPage: ContributionsPage;
+    userId: number; role: string;
 };
 
 // Display a contribution using South African local time.
 function ContributionRow({
-    contribution,
+    contribution, userId, role,
 }: {
-    contribution: Contribution;
+    contribution: Contribution; userId: number; role: string;
 }) {
     return (
         <div className="rounded-xl border border-gray-700 p-4">
@@ -44,6 +46,7 @@ function ContributionRow({
                       )
                     : "Payment date unavailable"}
             </p>
+            {(contribution.userId === userId || role === "Treasurer") && <Link className="text-sm underline" href={`/stokvels/${contribution.stokvelId}/proof?cycle=${contribution.cycle}&member=${contribution.userId}`}>Proof of payment</Link>}
         </div>
     );
 }
@@ -54,7 +57,7 @@ export default function ContributionHistoryList({
     member,
     from,
     to,
-    initialPage,
+    initialPage, userId, role,
 }: Props) {
     const loadMoreRef = useRef<HTMLDivElement>(null);
 
@@ -152,7 +155,7 @@ export default function ContributionHistoryList({
                     {contributions.map((contribution, index) => (
                         <ContributionRow
                             key={`${contribution.userId}-${contribution.cycle}-${index}`}
-                            contribution={contribution}
+                            contribution={contribution} userId={userId} role={role}
                         />
                     ))}
                 </div>

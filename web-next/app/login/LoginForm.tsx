@@ -1,18 +1,28 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
+import { safeNext } from "@/lib/safe-next";
 import { useActionState } from "react";
+
 import {
     loginWithState,
     type LoginState,
 } from "@/app/actions/auth";
 
-// The form starts without an authentication error.
+// Initial state before the user attempts to sign in.
 const initialState: LoginState = {
     error: "",
 };
 
-// Use React to manage login submission and error messages.
+// Displays the login form and handles its submission.
 export default function LoginForm() {
+
+    // Read query parameters from the current page URL.
+    // The "next" parameter tells us where to go after login.
+    const params = useSearchParams();
+
+    // Connect the form to the login Server Action.
+    // React tracks the result and whether the request is still running.
     const [state, formAction, isPending] = useActionState(
         loginWithState,
         initialState
@@ -20,6 +30,14 @@ export default function LoginForm() {
 
     return (
         <form action={formAction} className="mt-6 space-y-4">
+
+            {/* Preserve a safe internal destination after login. */}
+            <input
+                type="hidden"
+                name="next"
+                value={safeNext(params.get("next"))}
+            />
+
             {/* Collect the user's email address. */}
             <div>
                 <label htmlFor="email" className="block text-sm">
@@ -52,14 +70,17 @@ export default function LoginForm() {
                 />
             </div>
 
-            {/* Show authentication failures without navigating away. */}
+            {/* Display authentication errors without leaving the page. */}
             {state.error && (
-                <p role="alert" className="text-sm text-red-500">
+                <p
+                    role="alert"
+                    className="text-sm text-red-500"
+                >
                     {state.error}
                 </p>
             )}
 
-            {/* Prevent repeated submissions while authentication runs. */}
+            {/* Prevent repeated submissions while login is processing. */}
             <button
                 type="submit"
                 disabled={isPending}
@@ -67,6 +88,7 @@ export default function LoginForm() {
             >
                 {isPending ? "Signing in..." : "Sign in"}
             </button>
+
         </form>
     );
 }

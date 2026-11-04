@@ -120,6 +120,84 @@ namespace RondiTrack.Migrations
                     b.ToTable("CycleArrears");
                 });
 
+            modelBuilder.Entity("RondiTrack.Models.CycleCloseReceipt", b =>
+                {
+                    b.Property<int>("CycleId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("ResultJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Version")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("CycleId");
+
+                    b.ToTable("CycleCloseReceipts");
+                });
+
+            modelBuilder.Entity("RondiTrack.Models.JoinInvite", b =>
+                {
+                    b.Property<string>("Code")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("ExpiresAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Rules")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Schedule")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("StokvelId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Code");
+
+                    b.HasIndex("StokvelId");
+
+                    b.ToTable("JoinInvites");
+                });
+
+            modelBuilder.Entity("RondiTrack.Models.PaymentProof", b =>
+                {
+                    b.Property<int>("StokvelId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Cycle")
+                        .HasColumnType("integer");
+
+                    b.Property<byte[]>("Bytes")
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("UploaderId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("StokvelId", "UserId", "Cycle");
+
+                    b.ToTable("PaymentProofs");
+                });
+
             modelBuilder.Entity("RondiTrack.Models.Payout", b =>
                 {
                     b.Property<int>("Id")
@@ -332,6 +410,33 @@ namespace RondiTrack.Migrations
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("RondiTrack.Models.CycleCloseReceipt", b =>
+                {
+                    b.HasOne("RondiTrack.Models.ContributionCycle", null)
+                        .WithMany()
+                        .HasForeignKey("CycleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("RondiTrack.Models.JoinInvite", b =>
+                {
+                    b.HasOne("RondiTrack.Models.Stokvel", null)
+                        .WithMany()
+                        .HasForeignKey("StokvelId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("RondiTrack.Models.PaymentProof", b =>
+                {
+                    b.HasOne("RondiTrack.Models.Contribution", null)
+                        .WithMany()
+                        .HasForeignKey("StokvelId", "UserId", "Cycle")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 
