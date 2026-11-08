@@ -5,6 +5,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <DefaultItemExcludes>$(DefaultItemExcludes);.tmp*/**;web-next/.next/**;web-next/e2e/.auth/**;web-next/test-results/**;web-next/playwright-report/**</DefaultItemExcludes>
 
     <!-- Identify the user-secrets configuration for development. -->
     <UserSecretsId>c16d6931-b886-4f90-9200-831d1c0c4550</UserSecretsId>

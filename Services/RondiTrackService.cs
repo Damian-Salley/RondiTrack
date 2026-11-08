@@ -116,6 +116,8 @@ public class RondiTrackService : IRondiTrackService
         if (amountInCents <= 0)
             throw new BusinessRuleException(
                 "Contribution amount must be greater than zero.");
+        if (amountInCents > ContributionLimits.MaximumCents)
+            throw new BusinessRuleException("Contribution amount exceeds the maximum supported cents.");
 
         // Include the amount so a changed request cannot reuse the same key.
         var payload = $"{stokvelId}:{userId}:{cycle}:{amountInCents}";

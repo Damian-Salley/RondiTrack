@@ -292,7 +292,7 @@ export default function CloseCycle({
                         ref={cancel}
                         autoFocus
                         type="button"
-                        disabled={busy}
+                        disabled={busy && Boolean(preview)}
                         className="rounded border p-2"
                         onClick={() => dialog.current?.close()}
                     >

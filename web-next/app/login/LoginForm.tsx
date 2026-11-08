@@ -1,8 +1,9 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
-import { safeNext } from "@/lib/safe-next";
 import { useActionState } from "react";
+import { useSearchParams } from "next/navigation";
+
+import { safeNext } from "@/lib/safe-next";
 
 import {
     loginWithState,
@@ -14,23 +15,30 @@ const initialState: LoginState = {
     error: "",
 };
 
-// Displays the login form and handles its submission.
+// Display the login form and handle authentication.
 export default function LoginForm() {
-
     // Read query parameters from the current page URL.
-    // The "next" parameter tells us where to go after login.
     const params = useSearchParams();
 
+    // Determine whether the user was redirected because
+    // their previous session expired.
+    const sessionExpired = params.get("expired") === "1";
+
     // Connect the form to the login Server Action.
-    // React tracks the result and whether the request is still running.
+    //
+    // state: The result of the most recent login attempt.
+    // formAction: The function called when the form is submitted.
+    // isPending: Whether the login request is still processing.
     const [state, formAction, isPending] = useActionState(
         loginWithState,
         initialState
     );
 
     return (
-        <form action={formAction} className="mt-6 space-y-4">
-
+        <form
+            action={formAction}
+            className="mt-6 space-y-4"
+        >
             {/* Preserve a safe internal destination after login. */}
             <input
                 type="hidden"
@@ -38,9 +46,22 @@ export default function LoginForm() {
                 value={safeNext(params.get("next"))}
             />
 
+            {/* Explain why the user was redirected to login. */}
+            {sessionExpired && !state.error && (
+                <p
+                    role="status"
+                    className="text-sm text-amber-700"
+                >
+                    Your session has expired. Please sign in again.
+                </p>
+            )}
+
             {/* Collect the user's email address. */}
             <div>
-                <label htmlFor="email" className="block text-sm">
+                <label
+                    htmlFor="email"
+                    className="block text-sm"
+                >
                     Email
                 </label>
 
@@ -48,15 +69,22 @@ export default function LoginForm() {
                     id="email"
                     name="email"
                     type="email"
-                    autoComplete="email"
+                    autoComplete="username"
                     required
+                    aria-invalid={Boolean(state.error)}
+                    aria-describedby={
+                        state.error ? "login-error" : undefined
+                    }
                     className="mt-1 w-full rounded border p-2"
                 />
             </div>
 
-            {/* Collect the password without displaying its contents. */}
+            {/* Collect the user's password securely. */}
             <div>
-                <label htmlFor="password" className="block text-sm">
+                <label
+                    htmlFor="password"
+                    className="block text-sm"
+                >
                     Password
                 </label>
 
@@ -66,21 +94,26 @@ export default function LoginForm() {
                     type="password"
                     autoComplete="current-password"
                     required
+                    aria-invalid={Boolean(state.error)}
+                    aria-describedby={
+                        state.error ? "login-error" : undefined
+                    }
                     className="mt-1 w-full rounded border p-2"
                 />
             </div>
 
-            {/* Display authentication errors without leaving the page. */}
+            {/* Announce authentication errors to screen readers. */}
             {state.error && (
                 <p
+                    id="login-error"
                     role="alert"
-                    className="text-sm text-red-500"
+                    className="text-sm text-red-600"
                 >
                     {state.error}
                 </p>
             )}
 
-            {/* Prevent repeated submissions while login is processing. */}
+            {/* Prevent duplicate login attempts while processing. */}
             <button
                 type="submit"
                 disabled={isPending}
@@ -88,7 +121,6 @@ export default function LoginForm() {
             >
                 {isPending ? "Signing in..." : "Sign in"}
             </button>
-
         </form>
     );
 }

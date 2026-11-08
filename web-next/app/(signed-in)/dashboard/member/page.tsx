@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { getHomeStokvels } from "@/lib/api";
+import { formatDate } from "@/lib/formatters";
 
 export default function MemberDashboard() {
     return (
@@ -81,7 +82,7 @@ async function MemberDashboardContent() {
                         <p>
                             Next payout:{" "}
                             {stokvel.nextPayoutDate
-                                ? new Date(stokvel.nextPayoutDate).toLocaleDateString("en-ZA")
+                                ? formatDate(stokvel.nextPayoutDate)
                                 : "Not scheduled"}
                         </p>
                     </div>

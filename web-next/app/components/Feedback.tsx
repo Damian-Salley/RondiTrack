@@ -57,7 +57,7 @@ export default function Feedback({
             role={result.status >= 400 ? "alert" : "status"}
             className={
                 toast
-                    ? "fixed bottom-4 right-4 z-50 max-w-md rounded border bg-gray-950 p-4 text-white shadow-lg"
+                    ? "my-3 max-w-md rounded border bg-gray-950 p-4 text-white shadow-lg"
                     : "my-3"
             }
         >

@@ -13,10 +13,9 @@ import {
 // Import the Server Component that displays recent contributions.
 import RecentContributions from "./RecentContributions";
 // Import the client form used to record contributions.
-import ContributionForm from "@/app/components/ContributionForm";
-import CreateInvite from "@/app/components/CreateInvite";
-import CloseCycle from "@/app/components/CloseCycle";
+import StokvelActions from "@/app/components/StokvelActions";
 import PinStokvelButton from "@/app/components/PinStokvelButton";
+import { formatCents } from "@/lib/formatters";
 
 
 
@@ -146,6 +145,7 @@ async function StokvelDetailsContent({
                         </p>
 
                         <p>Target amount: R{activeCycle.targetAmount}</p>
+                        <p>Total collected this cycle: <output aria-label="Total collected this cycle">{formatCents(homeStokvel?.totalCollectedCents ?? 0)}</output></p>
                     </div>
                 ) : (
                     <p className="text-gray-400">
@@ -154,29 +154,7 @@ async function StokvelDetailsContent({
                 )}
             </div>
 
-            {homeStokvel?.role === "Treasurer" && <section className="mt-6">
-                <CreateInvite stokvelId={stokvelId} />
-                {activeCycle && homeStokvel.cycleStatus === "Active" && <CloseCycle cycleId={activeCycle.id} />}
-            </section>}
-
-            {/* Only display the form when an active contribution cycle exists. */}
-            {activeCycle && homeStokvel?.cycleStatus === "Active" && (
-                <section className="mt-6">
-                    <ContributionForm
-                        // Identify the stokvel receiving the contribution.
-                        stokvelId={stokvelId}
-
-                        // Use the actual database cycle ID, not its display number.
-                        cycleId={activeCycle.id}
-
-                        // Supply the members for the Treasurer's dropdown.
-                        members={members}
-
-                        // Use the signed-in user's role within this stokvel.
-                        role={homeStokvel.role}
-                    />
-                </section>
-            )}
+            <StokvelActions stokvelId={stokvelId} cycleId={homeStokvel?.cycleStatus === "Active" ? activeCycle?.id : undefined} role={homeStokvel?.role ?? "Member"} members={members} />
 
             <Link className="mt-6 block underline" href={`/stokvels/${stokvelId}/contributions`}>Contribution history and payment proofs</Link>
 

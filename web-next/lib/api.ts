@@ -64,6 +64,7 @@ export type HomeStokvel = {
     currentCycle: number | null;
     cycleStatus: string | null;
     paidThisCycle: number;
+    totalCollectedCents?: string;
     stillOwes: number;
     arrearsCents: number;
     nextPayoutDate: string | null;

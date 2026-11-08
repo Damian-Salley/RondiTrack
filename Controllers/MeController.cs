@@ -151,6 +151,11 @@ public class MeController : ControllerBase
                 : 0m;
 
             // Find the next scheduled payout that has not passed.
+            var cycleContributions = cycle is null ? [] :
+                await _repository.GetContributionsByCycleAsync(stokvel.Id, cycle.Id);
+            var totalCollected = cycleContributions
+                .Where(item => item.Status is "Paid" or "Confirmed")
+                .Sum(item => item.ContributionAmount);
             var nextPayout = payouts
                 .Where(p => p.StokvelId == stokvel.Id &&
                             p.PayoutDate >= now)
@@ -177,6 +182,7 @@ public class MeController : ControllerBase
                 // Convert the amount already paid into integer cents.
                 // checked prevents silent overflow during conversion.
                 PaidThisCycle = checked((long)(paid * 100m)),
+                TotalCollectedCents = checked((long)(totalCollected * 100m)),
 
                 // Calculate the outstanding amount in the API,
                 // then convert it into integer cents.
