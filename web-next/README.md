@@ -307,3 +307,74 @@ To open the successful journey trace after the browser run (from web-next):
 $journeyTrace = Get-ChildItem test-results -Filter trace.zip -Recurse | Where-Object { $_.FullName -match 'R150-50' } | Select-Object -First 1
 npx playwright show-trace $journeyTrace.FullName
 ```
+
+
+
+
+
+========================================================================================================================================
+
+
+
+
+
+## Assignment 9.2 — Testing, Performance, Accessibility and Privacy
+
+### Automated Testing
+
+The following checks were completed successfully:
+
+- Backend: 81 tests passed.
+- Frontend: 68 Vitest tests passed across 10 consecutive runs.
+- Frontend tests were executed using UTC and Africa/Johannesburg time zones.
+- Playwright: 6 tests passed across 3 production-environment runs.
+- Automated accessibility checks were performed using Playwright and axe.
+- ESLint, TypeScript checks and production build passed.
+- GitHub Actions CI checks passed.
+
+### Performance Results
+
+Mobile performance was measured using Lighthouse and Playwright.
+
+| Metric | Before | After | Target |
+|---|---:|---:|---:|
+| Home LCP | 0.954s | 0.810s | <2.5s |
+| Home CLS | 0 | 0 | <0.1 |
+| Stokvel LCP | 0.975s | 0.967s | <2.5s |
+| Interaction INP | 77.8ms | 67.1ms | <200ms |
+
+These results are local synthetic measurements, not real-user field data.
+
+### Accessibility
+
+Keyboard-only testing confirmed:
+
+- Login and dashboard navigation.
+- Member selection.
+- Contribution submission and validation messages.
+- Payment proof upload and access.
+- Close Cycle dialog focus handling, Escape and focus restoration.
+- Invitation creation and rules navigation.
+
+The final invitation submission and manual NVDA screen-reader testing remain unverified.
+
+### Security and Privacy
+
+- `npm audit` and `npm audit --omit=dev` reported zero vulnerabilities.
+- NuGet audits reported no vulnerable packages from the configured sources.
+- Private routes use `noindex` metadata.
+- Signed-out invitation previews do not expose private stokvel information.
+- Payment proofs remain accessible through authenticated requests.
+- Dependency release-age verification passed for 28 of 29 checked packages. `minimatch@11.0.1` remains a documented exception until 11 November 2026.
+
+### GitHub Actions
+
+Assignment 9.2 Pull Request:
+
+https://github.com/Damian-Salley/RondiTrack/pull/5
+
+The CI pipeline includes backend tests, frontend checks, production builds, and Playwright accessibility testing.
+
+### Detailed Evidence
+
+See [ASSIGNMENT-9.2-PR.md](./ASSIGNMENT-9.2-PR.md) for the complete test results, performance measurements, implementation details and remaining manual evidence.

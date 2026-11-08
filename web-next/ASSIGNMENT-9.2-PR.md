@@ -32,10 +32,14 @@ Actual performance measurements and the curl head are recorded below. No specula
 
 ## Manual evidence still required
 
-- [ ] Red PR URL, failed job URL and screenshot.
-- [ ] Green Assignment 9.2 PR URL and CI URL.
+- [ ] Red CI evidence: Playwright initially failed because the Ubuntu 26.04 runner was incompatible with Playwright 1.60.0. Failed job: https://github.com/Damian-Salley/RondiTrack/actions/runs/42526561033/job/128871979487?pr=5. Fixed by pinning the E2E runner to Ubuntu 24.04 in commit b69a76e. Screenshot still required.
+
+- [x] Green Assignment 9.2 PR: https://github.com/Damian-Salley/RondiTrack/pull/5 — All GitHub Actions checks passed after commit b69a76e. CI runs: https://github.com/Damian-Salley/RondiTrack/actions
+
 - [ ] Windows NVDA speech observations for one amount, one date, errors and success.
-- [ ] Keyboard-only join, contribution, proof and close-dialog verification.
+
+- [x] Keyboard-only verification completed for login, dashboard navigation, member selection, contribution submission and validation, payment proof upload/access, Close Cycle dialog focus management, and invitation rules navigation. All tested interactions worked using the keyboard. The final invitation submission was not independently verified.
+
 - [ ] Five-minute demonstration recording, including a temporary money-rule failure (restore the rule afterward), browser report/trace, accessibility, performance and CI.
 - [ ] Deployed preview checker after deployment.
 
