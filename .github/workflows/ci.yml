@@ -40,7 +40,7 @@ jobs:
   e2e:
     name: Production browser and accessibility tests
     needs: [test, frontend]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       POSTGRES_PASSWORD: assignment92-test-only-postgres
       E2E_PASSWORD: assignment92-test-only-password
