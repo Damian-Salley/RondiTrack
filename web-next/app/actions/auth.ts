@@ -1,10 +1,11 @@
 "use server";
 
 import { redirect } from "next/navigation";
+
 import {
     createSession,
     deleteSession,
-    getSession
+    getSession,
 } from "@/lib/session";
 
 import { safeNext } from "@/lib/safe-next";
@@ -17,21 +18,17 @@ export type LoginState = {
     error: string;
 };
 
-// Handles login submissions that use React's useActionState.
-export async function loginWithState(
-    _previousState: LoginState,
-    formData: FormData
-): Promise<LoginState> {
-
-    // Read the email and password submitted by the user.
-    const email = String(formData.get("email") ?? "").trim();
-    const password = String(formData.get("password") ?? "");
-
+// Authenticate a user and create an encrypted application session.
+//
+// Both login actions use this helper so authentication behaviour
+// remains consistent throughout the application.
+async function authenticate(
+    email: string,
+    password: string
+): Promise<string | null> {
     // Reject missing or obviously invalid credentials.
     if (!email.includes("@") || !password) {
-        return {
-            error: "Enter a valid email address and password."
-        };
+        return "Enter a valid email address and password.";
     }
 
     try {
@@ -41,149 +38,143 @@ export async function loginWithState(
             {
                 method: "POST",
                 headers: {
-                    "Content-Type": "application/json"
+                    "Content-Type": "application/json",
                 },
                 body: JSON.stringify({
                     email,
-                    password
+                    password,
                 }),
-                cache: "no-store"
+                cache: "no-store",
             }
         );
 
-        // Return a friendly message if authentication fails.
+        // Do not reveal which credential was incorrect.
         if (!response.ok) {
-            return {
-                error: "Invalid email or password."
-            };
+            return "Invalid email or password.";
         }
 
-        // Read the access token returned by the backend.
-        const data = (await response.json()) as {
-            accessToken: string;
-        };
+        // Read the response without assuming its structure is valid.
+        const data: unknown = await response.json();
+
+        // The backend must return a non-empty access token.
+        if (
+            typeof data !== "object" ||
+            data === null ||
+            !("accessToken" in data) ||
+            typeof data.accessToken !== "string" ||
+            data.accessToken.length === 0
+        ) {
+            return "Unable to create a session.";
+        }
 
         // Find the refresh token in the backend's Set-Cookie headers.
         const refreshCookie = response.headers
             .getSetCookie()
-            .find(cookie => cookie.startsWith("refreshToken="));
+            .find((cookie) =>
+                cookie.startsWith("refreshToken=")
+            );
 
-        // Extract the refresh token value from the cookie.
+        // Extract the refresh token without its cookie attributes.
         const refreshToken = refreshCookie
             ?.split(";")[0]
             .substring("refreshToken=".length);
 
-        // Both tokens are required to establish a session.
+        // Both tokens are required to create a session.
         if (!refreshToken) {
-            return {
-                error: "Unable to create a session."
-            };
+            return "Unable to create a session.";
         }
 
-        // Store the tokens in the application's encrypted session cookie.
+        // Encrypt the tokens and store them in the session cookie.
         await createSession({
             accessToken: data.accessToken,
-            refreshToken
+            refreshToken,
         });
 
+        // Null indicates successful authentication.
+        return null;
     } catch {
-        // Handle connection failures without exposing backend details.
-        return {
-            error: "Unable to connect. Please try again."
-        };
+        // Handle backend or network failures without exposing details.
+        return "Unable to connect. Please try again.";
+    }
+}
+
+// Handles login submissions using React's useActionState.
+export async function loginWithState(
+    _previousState: LoginState,
+    formData: FormData
+): Promise<LoginState> {
+    // Read the submitted credentials.
+    const email = String(formData.get("email") ?? "").trim();
+    const password = String(formData.get("password") ?? "");
+
+    // Authenticate the user.
+    const error = await authenticate(email, password);
+
+    // Display authentication errors without redirecting.
+    if (error) {
+        return { error };
     }
 
     // Redirect after the session has been created.
-    // Validate the destination again because form inputs can be modified.
-    // Keep redirect outside try/catch because Next.js uses a thrown redirect.
+    //
+    // Validate the destination because hidden form inputs
+    // can be modified by the browser.
+    //
+    // Keep redirect outside try/catch because Next.js
+    // implements redirects by throwing internally.
     redirect(safeNext(formData.get("next")));
 }
 
-// Existing login action used by other parts of the application.
-export async function login(formData: FormData) {
-
-    // Read the submitted credentials.
-    const email = String(formData.get("email") ?? "");
+// Existing login action used elsewhere in the application.
+//
+// Keep this export to avoid breaking existing forms or callers.
+export async function login(
+    formData: FormData
+): Promise<void> {
+    const email = String(formData.get("email") ?? "").trim();
     const password = String(formData.get("password") ?? "");
 
-    // Request authentication from the backend.
-    const response = await fetch(
-        `${baseUrl}/api/v1/auth/login`,
-        {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                email,
-                password
-            }),
-            cache: "no-store"
-        }
-    );
+    // Reuse the same authentication logic as loginWithState.
+    const error = await authenticate(email, password);
 
-    // Return to the login page if authentication fails.
-    if (!response.ok) {
+    if (error) {
+        // Preserve the existing login action's redirect behaviour.
         redirect("/login?error=1");
     }
 
-    // Read the access token.
-    const data = (await response.json()) as {
-        accessToken: string;
-    };
-
-    // Retrieve the refresh token from the response cookie.
-    const refreshCookie = response.headers
-        .getSetCookie()
-        .find(cookie => cookie.startsWith("refreshToken="));
-
-    const refreshToken = refreshCookie
-        ?.split(";")[0]
-        .substring("refreshToken=".length);
-
-    // A missing refresh token means the session cannot be created.
-    if (!refreshToken) {
-        throw new Error("Backend did not return a refresh token.");
-    }
-
-    // Create the encrypted application session.
-    await createSession({
-        accessToken: data.accessToken,
-        refreshToken
-    });
-
-    // Redirect only to a validated internal application path.
+    // Only redirect to a safe internal application destination.
     redirect(safeNext(formData.get("next")));
 }
 
-// Logs the user out of the backend and the Next.js application.
-export async function logout() {
-
-    // Read the current session to obtain the refresh token.
+// Log the user out of the backend and the Next.js application.
+export async function logout(): Promise<void> {
+    // Read the session so the backend can invalidate its refresh token.
     const session = await getSession();
 
     try {
         if (session) {
-
             // Ask the backend to invalidate the refresh token.
             await fetch(
                 `${baseUrl}/api/v1/auth/logout`,
                 {
                     method: "POST",
                     headers: {
-                        Cookie: `refreshToken=${session.refreshToken}`
+                        Cookie: `refreshToken=${session.refreshToken}`,
                     },
-                    cache: "no-store"
+                    cache: "no-store",
                 }
             );
         }
-
+    } catch {
+        // A network failure must not prevent local logout.
+        //
+        // The backend refresh token might remain valid until
+        // it expires, but the browser session will be removed.
     } finally {
-
-        // Always clear the local session, even if the backend is unavailable.
+        // Always remove the local session, even if the backend fails.
         await deleteSession();
     }
 
-    // Return the user to the login page.
+    // Redirect after the session has been deleted.
     redirect("/login");
 }

@@ -2,6 +2,12 @@ import type { NextConfig } from "next";
 
 // Configure how the Next.js application behaves.
 const nextConfig: NextConfig = {
+  async headers() {
+    return [{ source: "/bff/:path*", headers: [
+      { key: "X-Robots-Tag", value: "noindex, nofollow" },
+      { key: "Cache-Control", value: "private, no-store" },
+    ] }];
+  },
 
   // Enable Cache Components for streaming and caching.
   // This allows supported components to use Next.js caching features.

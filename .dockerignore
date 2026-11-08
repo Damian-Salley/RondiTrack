@@ -10,3 +10,7 @@
 .env.*
 !.env.example
 RondiTrack.Tests/
+.tmp*/
+web-next/.next/
+web-next/e2e/.auth/
+web-next/playwright-report/

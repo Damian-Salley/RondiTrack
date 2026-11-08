@@ -20,6 +20,9 @@ public class HomeStokvelResponse
     // Monetary values are returned as integer cents.
     // For example, R500.00 is represented as 50000.
     public long PaidThisCycle { get; set; }
+    [System.Text.Json.Serialization.JsonNumberHandling(
+        System.Text.Json.Serialization.JsonNumberHandling.WriteAsString)]
+    public long TotalCollectedCents { get; set; }
 
     public long StillOwes { get; set; }
 

@@ -1,4 +1,5 @@
-import Link from "next/link";
+import PaymentProofLink from "@/app/components/PaymentProofLink";
+import { formatCents, formatDate } from "@/lib/formatters";
 
 // Import the type describing the paginated API response.
 import type { ContributionsPage } from "@/lib/api";
@@ -42,26 +43,20 @@ export default async function RecentContributions({
                                 </p>
 
                                 <p className="mt-1 text-sm text-gray-400">
-                                    {contribution.paidAtUtc
-                                        ? new Date(
-                                            contribution.paidAtUtc
-                                        ).toLocaleDateString("en-ZA", {
-                                            timeZone: "UTC",
-                                        })
-                                        : "Payment date unavailable"}
+                                    {formatDate(contribution.paidAtUtc)}
                                 </p>
                             </div>
 
                             <div className="text-right">
                                 {/* Convert cents into rand for display. */}
                                 <p className="text-lg font-semibold">
-                                    R{(contribution.amountCents / 100).toFixed(2)}
+                                    {formatCents(contribution.amountCents)}
                                 </p>
 
                                 <p className="text-sm text-gray-400">
                                     {contribution.status}
                                 </p>
-                                {(contribution.userId === userId || role === "Treasurer") && <Link className="text-sm underline" href={`/stokvels/${contribution.stokvelId}/proof?cycle=${contribution.cycle}&member=${contribution.userId}`}>Proof of payment</Link>}
+                                <PaymentProofLink stokvelId={contribution.stokvelId} cycleId={contribution.cycle} memberId={contribution.userId} userId={userId} role={role} />
                             </div>
                         </div>
                     ))}

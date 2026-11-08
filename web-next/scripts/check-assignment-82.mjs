@@ -40,7 +40,7 @@ async function checkPrivateCaching() {
 
 // Check that the stokvel page uses concurrent fetching and Suspense.
 async function checkParallelFetching() {
-    const page = await readSource("app/stokvels/[id]/page.tsx");
+    const page = await readSource("app/(signed-in)/stokvels/[id]/page.tsx");
 
     assert.match(page, /Promise\.all/);
     assert.match(page, /contributionsPromise/);

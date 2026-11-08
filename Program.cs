@@ -675,6 +675,20 @@ if (app.Environment.IsDevelopment() &&
 }
 
 // Start the ASP.NET Core application.
+if (app.Configuration.GetValue<bool>("Assignment92TestSeed"))
+{
+    if (!app.Environment.IsDevelopment())
+        throw new InvalidOperationException("Test seeding is allowed only in Development.");
+    var testPassword = app.Configuration["Assignment92TestPassword"];
+    if (string.IsNullOrWhiteSpace(testPassword) || testPassword.Length < 12)
+        throw new InvalidOperationException("A test password of at least 12 characters is required.");
+    using var testScope = app.Services.CreateScope();
+    var testDb = testScope.ServiceProvider.GetRequiredService<RondiTrackDbContext>();
+    await testDb.Database.MigrateAsync();
+    var testUser = new RondiTrack.Models.User(1, "Sipho", "Nkosi", "sipho@assignment92.example", "0000000000");
+    var hasher = new Microsoft.AspNetCore.Identity.PasswordHasher<RondiTrack.Models.User>();
+    await Assignment92TestSeeder.SeedAsync(testDb, hasher.HashPassword(testUser, testPassword));
+}
 app.Run();
 
 // Required for integration tests.

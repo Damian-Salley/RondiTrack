@@ -1,0 +1,9 @@
+services:
+  db:
+    volumes: !reset []
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U ronditrack -d ronditrack"]
+  api:
+    environment:
+      Assignment92TestSeed: "true"
+      Assignment92TestPassword: ${E2E_PASSWORD:?E2E_PASSWORD is required}

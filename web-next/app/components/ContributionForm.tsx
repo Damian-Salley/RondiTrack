@@ -1,20 +1,26 @@
 "use client";
 
-import { useActionState, useEffect, useRef } from "react";
-// Import the Server Action and its TypeScript state definition.
+import {
+    startTransition,
+    useActionState,
+    useEffect,
+    useRef,
+    useState,
+    type FormEvent,
+} from "react";
+
 import {
     recordContribution,
     type ContributionActionState,
 } from "@/app/actions/contributions";
 
-// Define the initial form state inside the Client Component.
-// Server Action files must not export ordinary objects.
+// Initial state before the Server Action returns a result.
 const initialContributionState: ContributionActionState = {
     success: false,
     message: "",
 };
 
-// Describe the information the stokvel page supplies to this form.
+// Information supplied by the parent stokvel page.
 type ContributionFormProps = {
     stokvelId: number;
     cycleId: number;
@@ -26,56 +32,82 @@ type ContributionFormProps = {
     role: string;
 };
 
-// Display a form for recording contributions.
+// Form for recording a contribution in the current cycle.
 export default function ContributionForm({
     stokvelId,
     cycleId,
     members,
     role,
 }: ContributionFormProps) {
-    // React manages the Server Action result and pending submission state.
+    // Track the result and pending state of the Server Action.
     const [state, formAction, isPending] = useActionState(
         recordContribution,
         initialContributionState
     );
 
-    // Keep the same key across retries until the form details change.
-    const idempotencyKey = useRef(crypto.randomUUID());
+    // Preserve user input when a contribution fails.
+    const [amount, setAmount] = useState("");
+    const [userId, setUserId] = useState("");
 
-    // Remember the last submitted contribution details.
+    // Track the idempotency key and its associated contribution.
+    const idempotencyKey = useRef(crypto.randomUUID());
     const previousDetails = useRef("");
 
-    // Remember whether the previous request had an uncertain outcome.
-    const uncertainOutcome = useRef(false);
+    // Track the last successful result to avoid duplicate resets.
+    const lastSuccessfulState = useRef<ContributionActionState | null>(
+        null
+    );
 
-    // Keep a reference to the form so we can clear it after success.
-    const formRef = useRef<HTMLFormElement>(null);
+    // Keep a reference to the member dropdown.
+    const memberSelectRef = useRef<HTMLSelectElement>(null);
 
-    // Track which successful action result we have already processed.
-    const lastSuccessfulState = useRef<typeof state | null>(null);
+    const isTreasurer = role === "Treasurer";
 
+    // Handle completed Server Action results.
     useEffect(() => {
-        // Preserve the key when the backend result is uncertain.
-        if (state.uncertain) {
-            uncertainOutcome.current = true;
+        if (state.success) {
+            // Only process each successful result once.
+            if (lastSuccessfulState.current === state) {
+                return;
+            }
+
+            lastSuccessfulState.current = state;
+
+            // A new contribution requires a new idempotency key.
+            idempotencyKey.current = crypto.randomUUID();
+            previousDetails.current = "";
+
+            // Clear the fields after confirmed success.
+            setAmount("");
+            setUserId("");
+
+            if (memberSelectRef.current) {
+                memberSelectRef.current.value = "";
+            }
+
             return;
         }
 
-        // Reset the form only after a newly confirmed success.
-        if (state.success && lastSuccessfulState.current !== state) {
-            idempotencyKey.current = crypto.randomUUID();
-            previousDetails.current = "";
-            uncertainOutcome.current = false;
-
-            // Clear the member selection and amount.
-            formRef.current?.reset();
-
-            lastSuccessfulState.current = state;
+        // Restore the selected member after an unsuccessful submission.
+        // This also handles cases where React resets the native select.
+        if (memberSelectRef.current) {
+            memberSelectRef.current.value = userId;
         }
-    }, [state]);
+    }, [state, userId]);
 
-    // Prepare a stable idempotency key for each distinct contribution.
-    function prepareSubmission(formData: FormData) {
+    // Prepare and submit the contribution.
+    function handleSubmit(event: FormEvent<HTMLFormElement>) {
+        // Prevent normal browser submission.
+        event.preventDefault();
+
+        // Do not allow duplicate submissions while pending.
+        if (isPending) {
+            return;
+        }
+
+        const formData = new FormData(event.currentTarget);
+
+        // Identify the contribution being submitted.
         const details = JSON.stringify({
             stokvelId,
             cycleId,
@@ -83,37 +115,55 @@ export default function ContributionForm({
             userId: String(formData.get("userId") ?? ""),
         });
 
-        // A changed contribution requires a new idempotency key.
+        // Different details require a different idempotency key.
         if (details !== previousDetails.current) {
             idempotencyKey.current = crypto.randomUUID();
             previousDetails.current = details;
-            uncertainOutcome.current = false;
         }
 
-        // An unchanged retry keeps its original key.
+        // Retrying the same details reuses the existing key.
         formData.set("idempotencyKey", idempotencyKey.current);
 
-        return formAction(formData);
+        // Execute the action inside a transition to preserve pending state.
+        startTransition(() => {
+            formAction(formData);
+        });
     }
-
-    // Only Treasurers can choose which member receives the contribution.
-    const isTreasurer = role === "Treasurer";
 
     return (
         <form
-            ref={formRef}
-            action={prepareSubmission}
+            onSubmit={handleSubmit}
             className="space-y-4 rounded-lg border p-4"
         >
             <h2 className="text-lg font-semibold">
                 Record Contribution
             </h2>
 
-            {/* Identify the stokvel and contribution cycle. */}
-            <input type="hidden" name="stokvelId" value={stokvelId} />
-            <input type="hidden" name="cycleId" value={cycleId} />
+            {/* Announce submission results to screen readers. */}
+            {state.message && (
+                <div role={state.success ? "status" : "alert"}>
+                    <p>{state.message}</p>
 
-            {/* Treasurers may record contributions for other members. */}
+                    {state.correlationId && (
+                        <p>Reference: {state.correlationId}</p>
+                    )}
+                </div>
+            )}
+
+            {/* Identify the stokvel and cycle. */}
+            <input
+                type="hidden"
+                name="stokvelId"
+                value={stokvelId}
+            />
+
+            <input
+                type="hidden"
+                name="cycleId"
+                value={cycleId}
+            />
+
+            {/* Only treasurers can select another member. */}
             {isTreasurer && (
                 <div>
                     <label
@@ -124,9 +174,18 @@ export default function ContributionForm({
                     </label>
 
                     <select
+                        ref={memberSelectRef}
                         id="contribution-user"
                         name="userId"
                         required
+                        value={userId}
+                        onChange={(event) => setUserId(event.target.value)}
+                        aria-invalid={Boolean(state.fieldErrors?.userId)}
+                        aria-describedby={
+                            state.fieldErrors?.userId
+                                ? "contribution-user-error"
+                                : undefined
+                        }
                         className="w-full rounded border p-2"
                     >
                         <option value="">Select a member</option>
@@ -137,10 +196,17 @@ export default function ContributionForm({
                             </option>
                         ))}
                     </select>
+
+                    {/* Associate member errors with the dropdown. */}
+                    {state.fieldErrors?.userId && (
+                        <p id="contribution-user-error" role="alert">
+                            {state.fieldErrors.userId}
+                        </p>
+                    )}
                 </div>
             )}
 
-            {/* Accept the amount in rand; the Server Action converts it to cents. */}
+            {/* Enter the contribution amount in rand. */}
             <div>
                 <label
                     htmlFor="contribution-amount"
@@ -156,32 +222,26 @@ export default function ContributionForm({
                     inputMode="decimal"
                     placeholder="250.00"
                     required
+                    value={amount}
+                    onChange={(event) => setAmount(event.target.value)}
+                    aria-invalid={Boolean(state.fieldErrors?.amount)}
+                    aria-describedby={
+                        state.fieldErrors?.amount
+                            ? "contribution-amount-error"
+                            : undefined
+                    }
                     className="w-full rounded border p-2"
                 />
+
+                {/* Associate amount errors with the input. */}
+                {state.fieldErrors?.amount && (
+                    <p id="contribution-amount-error" role="alert">
+                        {state.fieldErrors.amount}
+                    </p>
+                )}
             </div>
 
-            {/* Show the result returned by the Server Action. */}
-            {state.message && (
-                <p
-                    role="status"
-                    className={
-                        state.success
-                            ? "text-sm text-green-700"
-                            : "text-sm text-red-700"
-                    }
-                >
-                    {state.message}
-                </p>
-            )}
-
-            {/* Show the backend reference to help investigate failed requests. */}
-            {state.correlationId && (
-                <p className="text-xs text-gray-400">
-                    Reference: {state.correlationId}
-                </p>
-            )}
-
-            {/* Disable the button while the request is processing. */}
+            {/* Prevent duplicate submissions while pending. */}
             <button
                 type="submit"
                 disabled={isPending}

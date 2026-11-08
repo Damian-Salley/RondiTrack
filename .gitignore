@@ -481,3 +481,7 @@ $RECYCLE.BIN/
 # Vim temporary swap files
 *.swp
 clients/typescript/node_modules/
+.tmp-assignment92/
+web-next/e2e/.auth/
+web-next/playwright-report/
+web-next/test-results/
