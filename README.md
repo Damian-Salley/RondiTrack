@@ -3125,3 +3125,27 @@ The following items are not claimed as fully verified:
 3. **Post-contribution refresh:** Refresh behaviour across the server-rendered first page and subsequent TanStack Query pages after creating a contribution has not been fully verified.
 
 These limitations are documented to distinguish implemented functionality from functionality that has been fully tested.
+
+## Assignment 10.1 Mobile Contract Handoff
+
+The previous root OpenAPI export was stale. Regenerate `/openapi/v1.json` from the application; `Assignment101Tests.OpenApi_ExportsCurrentCentsAndDetailContract` can export it using `RONDITRACK_CONTRACT_EXPORT`.
+
+Exact wire values: cycle `Active`, `Closed`, `Paid`; contribution `Pending`, `Paid`, `Confirmed`; membership `Member`, `Treasurer`, `Chairperson`. Labels such as Open and Paid out are UI words, not wire values. `/api/v1/me/home` returns each caller membership role as `role`, together with `stokvelId`. Neither `/me` nor the JWT supplies stokvel roles.
+
+Home returns non-null whole cents in `paidThisCycle`, `stillOwes`, `arrearsCents`, and `totalCollectedCents` (the last serializes as an integer string). `currentCycle`, `cycleStatus`, and `nextPayoutDate` can be null. All payout and due dates are UTC instants, not date-only values. Cycle responses now also expose `status`, `dueDateUtc`, `targetAmountCents`, and `requiredContributionCents`; stokvel responses expose `contributionAmountCents`. Legacy decimal fields remain for existing clients; mobile uses only cents. Decimal create/update amounts must be strictly positive, have at most two decimal places (including trailing zeros), and be no greater than 92233720368547758.07 rands, the signed 64-bit cents boundary. Invalid requests return 400 before persistence. Response conversion uses ContributionLimits.ToCents and never truncates or rounds; zero remains supported only for legacy cycle responses whose required amount was never configured. The existing JavaScript-safe contribution-recording limit is unchanged. Verification: all 24 focused decimal/cents cases passed, and the full unfiltered backend suite passed 108/108 tests (including those 24); test collections ran sequentially to limit PostgreSQL container memory.
+
+Enable `SeedDemoData` only in Development. Configure `DemoUserPassword` using user-secrets (at least 12 characters); it supplies a password to each development seed persona without a password hash:
+
+| Persona | Email | Memberships |
+| --- | --- | --- |
+| Demo Member | assignment71-demo@ronditrack.example | Treasurer of Community Savings; Member of Family Savings |
+| Sample Contributor | assignment71-contributor@ronditrack.example | Member of both; R250 arrears in a closed Community cycle |
+| New Member | assignment101-new@ronditrack.example | None |
+
+Fixture IDs are allocated above existing database IDs. Community active cycle requires R250: Demo has Paid R250, Sample has Confirmed R0.10. Family active cycle requires R100: Demo has a Pending R100 contribution. The seed also includes Closed and Paid Community cycles. Payout dates in Home are null until a future payout exists.
+
+`POST /api/v1/stokvels/{stokvelId}/cycles/{cycleId}/contributions/{memberId}/confirm` now exposes the existing domain confirmation transition. Only this stokvel's Treasurer may confirm a Paid row in an Active cycle. Non-members receive 404; other members receive 403; invalid status receives 409. Confirmation uses the same transaction/locking boundary as proof/closing workflows.
+
+Mobile action rules follow actual operations: no existing contribution permits payment in Active; an existing Pending/Paid/Confirmed contribution permits own proof upload in Active; Treasurer may confirm paid rows and close Active cycles; Treasurer or Chairperson may record payout in Active. The legacy payout service explicitly rejects Closed cycles. The newer proof/closing workflows require exact Treasurer role for management, so mobile does not assume Chairperson can close or confirm.
+
+These are local Assignment 10.1 fixes pending a separate backend commit and PR. No remote PR or green CI run is claimed by this section.

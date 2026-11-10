@@ -656,11 +656,12 @@ if (app.Environment.IsDevelopment() &&
         }
 
         // Find the existing demonstration user.
-        var demoUser = await db.Users.FirstOrDefaultAsync(
-            user => user.NormalizedEmail ==
-                "ASSIGNMENT71-DEMO@RONDITRACK.EXAMPLE");
+        var demoUsers = await db.Users.Where(user =>
+            user.NormalizedEmail == "ASSIGNMENT71-DEMO@RONDITRACK.EXAMPLE" ||
+            user.NormalizedEmail == "ASSIGNMENT71-CONTRIBUTOR@RONDITRACK.EXAMPLE" ||
+            user.NormalizedEmail == "ASSIGNMENT101-NEW@RONDITRACK.EXAMPLE").ToListAsync();
 
-        if (demoUser is not null && string.IsNullOrWhiteSpace(demoUser.PasswordHash))
+        foreach (var demoUser in demoUsers.Where(user => string.IsNullOrWhiteSpace(user.PasswordHash)))
         {
             // Use the same password-hashing mechanism as AuthController.
             var passwordHasher =
