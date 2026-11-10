@@ -39,6 +39,23 @@ public class JoinPaymentClosingService(RondiTrackDbContext db, TimeProvider cloc
             return result;
         });
 
+    // Serialize confirmation with payments and closing; never trust a token role.
+    public Task<Contribution> Confirm(int stokvelId, int cycleId, int memberId, int userId) => Mutate(async () =>
+    {
+        if (!await db.StokvelMembers.AnyAsync(m => m.StokvelId == stokvelId && m.UserId == userId))
+            throw new WorkflowException(404, "Stokvel not found.");
+        await RequireTreasurer(stokvelId, userId);
+        var contribution = await db.Contributions.FindAsync(stokvelId, memberId, cycleId)
+            ?? throw new WorkflowException(404, "Contribution not found.");
+        var cycle = await db.ContributionCycles.FindAsync(cycleId);
+        if (cycle is null || cycle.StokvelId != stokvelId)
+            throw new WorkflowException(404, "Cycle not found.");
+        if (cycle.Status != "Active" || contribution.Status != "Paid")
+            throw new WorkflowException(409, "Only a paid contribution in an active cycle can be confirmed.");
+        contribution.Confirm();
+        return contribution;
+    });
+
     public async Task<JoinInvite> CreateInvite(int stokvelId, int userId, string rules, string schedule)
     {
         await RequireTreasurer(stokvelId, userId);

@@ -35,7 +35,11 @@ public static class ContributionCycleMapper
             Id = cycle.Id,
             StokvelId = cycle.StokvelId,
             Number = cycle.Number,
-            TargetAmount = cycle.TargetAmount
+            TargetAmount = cycle.TargetAmount,
+            TargetAmountCents = ContributionLimits.ToCents(cycle.TargetAmount),
+            RequiredContributionCents = ContributionLimits.ToCents(cycle.RequiredContributionAmount),
+            Status = cycle.Status,
+            DueDateUtc = cycle.EndsAtUtc
         };
     }
 

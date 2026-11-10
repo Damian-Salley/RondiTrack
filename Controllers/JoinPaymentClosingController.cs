@@ -15,6 +15,13 @@ public class JoinPaymentClosingController(JoinPaymentClosingService service) : C
     public record InviteRequest(string Rules, string Schedule);
     public record CloseRequest(string Version);
 
+    [HttpPost("stokvels/{stokvelId:int}/cycles/{cycleId:int}/contributions/{memberId:int}/confirm")]
+    [EnableRateLimiting("Financial")]
+    public async Task<ActionResult<RondiTrack.DTOs.Contributions.ContributionResponse>> Confirm(
+        int stokvelId, int cycleId, int memberId)
+        => Ok(RondiTrack.Mappers.ContributionMapper.ToResponse(
+            await service.Confirm(stokvelId, cycleId, memberId, UserId)));
+
     [HttpPost("stokvels/{stokvelId:int}/invites")]
     public async Task<IActionResult> CreateInvite(int stokvelId, InviteRequest request)
         => Ok(await service.CreateInvite(stokvelId, UserId, request.Rules, request.Schedule));

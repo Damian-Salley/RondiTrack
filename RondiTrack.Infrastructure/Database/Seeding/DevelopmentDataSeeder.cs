@@ -14,6 +14,16 @@ public static class DevelopmentDataSeeder
 
     public static async Task SeedAsync(RondiTrackDbContext db)
     {
+        // A third mobile persona with no memberships; repair existing development seeds too.
+        const string newcomerEmail = "assignment101-new@ronditrack.example";
+        if (!await db.Users.AnyAsync(u => u.NormalizedEmail == newcomerEmail.ToUpperInvariant()))
+        {
+            var id = (await db.Users.MaxAsync(u => (int?)u.Id) ?? 0) + 1;
+            db.Users.Add(new User(id, "New", "Member", newcomerEmail, "0000000002"));
+            await db.SaveChangesAsync();
+            // Keep generated IDs safe when adding the new persona to an existing database.
+            await db.Database.ExecuteSqlRawAsync("SELECT setval(pg_get_serial_sequence('\"Users\"', 'Id'), (SELECT MAX(\"Id\") FROM \"Users\"))");
+        }
         // Preserve existing Assignment 7.1 demo data.
         if (await db.Users.AnyAsync(u =>
             u.NormalizedEmail == DemoEmail.ToUpperInvariant()))
