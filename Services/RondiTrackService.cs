@@ -199,6 +199,42 @@ public class RondiTrackService : IRondiTrackService
         return contribution;
     }
 
+    public async Task<IReadOnlyList<PayoutOrderEntryResponse>> GetPayoutOrderAsync(
+        int stokvelId, int cycleId)
+    {
+        var stokvel = await _repository.GetStokvelByIdAsync(stokvelId);
+        var cycle = await _repository.GetContributionCycleByIdAsync(cycleId);
+        if (stokvel is null || cycle is null || cycle.StokvelId != stokvelId)
+            throw new NotFoundException("Cycle not found.");
+
+        var members = stokvel.Members.OrderBy(member => member.UserId).ToList();
+        // No members means no order yet, rather than a fabricated next recipient.
+        if (members.Count == 0) return [];
+        var recipientIndex = PayoutRecipientIndex(cycle.Number, members.Count);
+        var payouts = await _repository.GetPayoutsAsync();
+        var amountCents = ContributionLimits.ToCents(
+            stokvel.ContributionAmount * members.Count);
+
+        return members.Select((member, index) =>
+        {
+            var paid = payouts.SingleOrDefault(payout =>
+                payout.StokvelId == stokvelId &&
+                payout.ContributionCycleId == cycleId &&
+                payout.UserId == member.UserId);
+            // A closed cycle has no payable next member. No scheduled date is invented.
+            var status = paid is not null ? "Paid"
+                : cycle.Status == "Active" && index == recipientIndex ? "Next" : "Waiting";
+            return new PayoutOrderEntryResponse(member.UserId,
+                $"{member.User.FirstName} {member.User.LastName}", index + 1,
+                paid is null ? amountCents : ContributionLimits.ToCents(paid.Amount),
+                paid?.PayoutDate, status);
+        }).ToList();
+    }
+
+    // Shared with processing so the preview cannot choose a different recipient.
+    private static int PayoutRecipientIndex(int cycleNumber, int memberCount) =>
+        (cycleNumber - 1) % memberCount;
+
     public async Task<Payout> ProcessPayoutAsync(
     int stokvelId,
     int contributionCycleId)
@@ -257,7 +293,7 @@ public class RondiTrackService : IRondiTrackService
             }
 
             var rotationIndex =
-                (cycle.Number - 1) % members.Count;
+                PayoutRecipientIndex(cycle.Number, members.Count);
 
             var recipient = members[rotationIndex];
 

@@ -42,6 +42,9 @@ public interface IRondiTrackService
         int stokvelId,
         ContributionPageRequest request);
 
+    Task<IReadOnlyList<RondiTrack.DTOs.Stokvels.PayoutOrderEntryResponse>>
+        GetPayoutOrderAsync(int stokvelId, int cycleId);
+
     //Payout operations
     Task<Payout> ProcessPayoutAsync(
         int stokvelId,

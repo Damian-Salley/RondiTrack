@@ -3149,3 +3149,22 @@ Fixture IDs are allocated above existing database IDs. Community active cycle re
 Mobile action rules follow actual operations: no existing contribution permits payment in Active; an existing Pending/Paid/Confirmed contribution permits own proof upload in Active; Treasurer may confirm paid rows and close Active cycles; Treasurer or Chairperson may record payout in Active. The legacy payout service explicitly rejects Closed cycles. The newer proof/closing workflows require exact Treasurer role for management, so mobile does not assume Chairperson can close or confirm.
 
 These are local Assignment 10.1 fixes pending a separate backend commit and PR. No remote PR or green CI run is claimed by this section.
+
+
+## Assignment 10.3 payout read contract
+
+`GET /api/v1/stokvels/{stokvelId}/cycles/{cycleId}/payouts` returns an ordered array
+of `userId`, `memberName`, `position` (one based), `amountCents` (whole Int64 cents),
+`paidAtUtc` (nullable UTC instant), and `status`: exactly `Paid`, `Next`, `Waiting`.
+The API orders current members by UserId and uses the same cycle-number rotation
+helper as payout processing to identify `Next`; clients must not calculate it.
+Only an Active cycle can have a `Next` row. A paid row uses its persisted amount
+and date. There is no promised/scheduled payout date. With no members the order
+is empty. This is a cycle preview, not a history of former memberships.
+Non-members and nonexistent/mismatched cycles receive 404. Anonymous callers
+receive 401. Recording remains POST `.../payout`: Treasurer or Chairperson may
+record; an ordinary member receives 403 and a non-member 404. Existing processing
+rules and transactions are unchanged. `Assignment103Tests` verifies the real
+HTTP contract, access, order, next, paid date/amount and empty service result.
+No packages or database migrations were added. Export `/openapi/v1.json` using
+`RONDITRACK_CONTRACT_EXPORT` with this test. Submission/PR is handled by the owner.

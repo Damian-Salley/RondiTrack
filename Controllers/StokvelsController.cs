@@ -439,6 +439,15 @@ public class StokvelsController : ControllerBase
     // PAYOUT OPERATIONS
     // =========================================================
 
+    [HttpGet("{stokvelId:int}/cycles/{cycleId:int}/payouts")]
+    public async Task<ActionResult<IReadOnlyList<PayoutOrderEntryResponse>>> GetPayoutOrder(
+        int stokvelId, int cycleId)
+    {
+        var accessFailure = await CheckAccessAsync(stokvelId);
+        if (accessFailure is not null) return accessFailure;
+        return Ok(await _service.GetPayoutOrderAsync(stokvelId, cycleId));
+    }
+
     // Only Treasurer and Chairperson can process payouts.
     [EnableRateLimiting("Financial")]
     [HttpPost("{stokvelId:int}/cycles/{contributionCycleId:int}/payout")]
