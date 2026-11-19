@@ -218,7 +218,25 @@ builder.Services.AddHealthChecks()
 // ============================================================
 
 // Register OpenAPI document generation services.
-builder.Services.AddOpenApi();
+builder.Services.AddOpenApi(options =>
+{
+    options.AddOperationTransformer((operation, _, _) =>
+    {
+        // Query values arrive as text but bind as integers. The JSON body
+        // number handling union does not apply to these URL parameters.
+        foreach (var parameter in operation.Parameters ?? [])
+        {
+            if (parameter.In == Microsoft.OpenApi.ParameterLocation.Query &&
+                parameter.Schema is Microsoft.OpenApi.OpenApiSchema schema &&
+                schema.Format is "int32" or "int64")
+            {
+                schema.Type = Microsoft.OpenApi.JsonSchemaType.Integer;
+                schema.Pattern = null;
+            }
+        }
+        return Task.CompletedTask;
+    });
+});
 
 // Register controllers and configure strict JSON number handling.
 builder.Services.AddControllers(options =>

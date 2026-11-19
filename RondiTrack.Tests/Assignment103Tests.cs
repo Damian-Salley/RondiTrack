@@ -69,6 +69,11 @@ public class Assignment103Tests
         using var document = JsonDocument.Parse(json);
         Assert.True(document.RootElement.GetProperty("paths").TryGetProperty(
             "/api/v1/stokvels/{stokvelId}/cycles/{cycleId}/payouts", out _));
+        var activityParameters = document.RootElement.GetProperty("paths")
+            .GetProperty("/api/v1/me/activity").GetProperty("get").GetProperty("parameters");
+        var pageSize = activityParameters.EnumerateArray().Single(
+            parameter => parameter.GetProperty("name").GetString() == "pageSize");
+        Assert.Equal("integer", pageSize.GetProperty("schema").GetProperty("type").GetString());
         var export = Environment.GetEnvironmentVariable("RONDITRACK_CONTRACT_EXPORT");
         if (!string.IsNullOrEmpty(export)) await File.WriteAllTextAsync(export, json);
     }
