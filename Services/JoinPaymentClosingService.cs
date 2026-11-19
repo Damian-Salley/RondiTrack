@@ -183,6 +183,9 @@ public class JoinPaymentClosingService(RondiTrackDbContext db, TimeProvider cloc
     public async Task<ClosePreview> PreviewClose(int cycleId, int userId)
     {
         var cycle = await db.ContributionCycles.FindAsync(cycleId) ?? throw new WorkflowException(404, "Cycle not found.");
+        // Conceal the cycle from non-members before checking the treasurer role.
+        if (!await db.StokvelMembers.AnyAsync(m => m.StokvelId == cycle.StokvelId && m.UserId == userId))
+            throw new WorkflowException(404, "Cycle not found.");
         await RequireTreasurer(cycle.StokvelId, userId);
         return await Calculate(cycleId);
     }
@@ -190,6 +193,9 @@ public class JoinPaymentClosingService(RondiTrackDbContext db, TimeProvider cloc
     public Task<ClosePreview> Close(int cycleId, int userId, string version, string key) => Mutate(async () =>
     {
         var cycle = await db.ContributionCycles.FindAsync(cycleId) ?? throw new WorkflowException(404, "Cycle not found.");
+        // Conceal the cycle from non-members before checking the treasurer role.
+        if (!await db.StokvelMembers.AnyAsync(m => m.StokvelId == cycle.StokvelId && m.UserId == userId))
+            throw new WorkflowException(404, "Cycle not found.");
         await RequireTreasurer(cycle.StokvelId, userId);
         if (string.IsNullOrWhiteSpace(key) || key.Length > 100 || string.IsNullOrWhiteSpace(version))
             throw new WorkflowException(400, "A preview version and Idempotency-Key are required.");

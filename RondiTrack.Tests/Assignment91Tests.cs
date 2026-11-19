@@ -185,7 +185,9 @@ public class Assignment91Tests
         var member = Client(factory, 2);
         Assert.Equal(HttpStatusCode.Forbidden, (await member.GetAsync(Preview)).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await Close(member, "version", "key")).StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, (await Client(factory, 5).GetAsync(Preview)).StatusCode);
+        using var outsider = Client(factory, 5);
+        Assert.Equal(HttpStatusCode.NotFound, (await outsider.GetAsync(Preview)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await Close(outsider, "version", "key")).StatusCode);
         var treasurer = Client(factory, 1);
         Assert.Equal(HttpStatusCode.BadRequest, (await treasurer.PostAsJsonAsync("/api/v1/contributioncycles/91/close", new { version = "test" })).StatusCode);
     }
