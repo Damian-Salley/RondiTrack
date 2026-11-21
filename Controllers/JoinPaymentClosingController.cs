@@ -68,11 +68,11 @@ public class JoinPaymentClosingController(JoinPaymentClosingService service) : C
     }
 
     [HttpGet("contributioncycles/{cycleId:int}/close-preview")]
-    public async Task<IActionResult> PreviewClose(int cycleId)
+    public async Task<ActionResult<ClosePreview>> PreviewClose(int cycleId)
         => Ok(await service.PreviewClose(cycleId, UserId));
 
     [HttpPost("contributioncycles/{cycleId:int}/close"), EnableRateLimiting("Financial")]
-    public async Task<IActionResult> Close(int cycleId, CloseRequest request,
+    public async Task<ActionResult<ClosePreview>> Close(int cycleId, CloseRequest request,
         [FromHeader(Name = "Idempotency-Key")] string? key)
         => Ok(await service.Close(cycleId, UserId, request.Version, key ?? ""));
 }
