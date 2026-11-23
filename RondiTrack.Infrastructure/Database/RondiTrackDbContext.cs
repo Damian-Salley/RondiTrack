@@ -15,6 +15,7 @@ public class RondiTrackDbContext : DbContext
     public DbSet<StokvelMember> StokvelMembers => Set<StokvelMember>();
     public DbSet<ContributionCycle> ContributionCycles => Set<ContributionCycle>();
     public DbSet<Contribution> Contributions => Set<Contribution>();
+    public DbSet<ContributionReceipt> ContributionReceipts => Set<ContributionReceipt>();
 
     // Stores the outstanding contribution amounts for each member and cycle.
     public DbSet<CycleArrears> CycleArrears => Set<CycleArrears>();
@@ -29,6 +30,11 @@ public class RondiTrackDbContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+
+        modelBuilder.Entity<ContributionReceipt>().HasKey(receipt => receipt.Key);
+        modelBuilder.Entity<ContributionReceipt>().HasIndex(receipt => receipt.ExpiresAtUtc);
+        modelBuilder.Entity<Stokvel>().Property(stokvel => stokvel.Version)
+            .IsConcurrencyToken();
 
         modelBuilder.Entity<JoinInvite>().HasKey(x => x.Code);
         modelBuilder.Entity<JoinInvite>().HasOne<Stokvel>().WithMany().HasForeignKey(x => x.StokvelId);

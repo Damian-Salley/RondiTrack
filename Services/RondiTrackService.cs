@@ -113,6 +113,24 @@ public class RondiTrackService : IRondiTrackService
         long amountInCents,
         string idempotencyKey)
     {
+        var result = await RecordCyclePaymentAsync(
+            stokvelId, userId, cycle, amountInCents, idempotencyKey);
+        return result.Contribution;
+    }
+
+    public async Task<(Contribution Contribution, bool Replayed)> RecordCyclePaymentAsync(
+        int stokvelId, int userId, int cycle, long amountInCents, string idempotencyKey)
+    {
+        var result = await _idempotencyStore.ExecuteAsync(() =>
+            RecordPaymentAsync(stokvelId, userId, cycle, amountInCents, idempotencyKey));
+        if (!result.Replayed)
+            RondiTrackTelemetry.ContributionsRecorded.Add(1);
+        return result;
+    }
+
+    private async Task<(Contribution Contribution, bool Replayed)> RecordPaymentAsync(
+        int stokvelId, int userId, int cycle, long amountInCents, string idempotencyKey)
+    {
         if (amountInCents <= 0)
             throw new BusinessRuleException(
                 "Contribution amount must be greater than zero.");
@@ -128,7 +146,7 @@ public class RondiTrackService : IRondiTrackService
         if (existingRecord is not null)
         {
             if (existingRecord.Payload == payload)
-                return existingRecord.Contribution;
+                return (existingRecord.Contribution, true);
 
             throw new IdempotencyConflictException(
                 "Idempotency key has already been used with a different request.");
@@ -178,7 +196,9 @@ public class RondiTrackService : IRondiTrackService
 
         // Convert integer cents to an exact decimal amount.
         var amount = amountInCents / 100m;
-        var paidAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
+        // PostgreSQL stores timestamp precision in microseconds.
+        var now = _timeProvider.GetUtcNow().UtcDateTime;
+        var paidAtUtc = now.AddTicks(-(now.Ticks % 10));
 
         var contribution = new Contribution(
             userId,
@@ -193,10 +213,7 @@ public class RondiTrackService : IRondiTrackService
             idempotencyKey,
             new IdempotencyRecord(payload, contribution));
 
-        // Count only newly recorded contributions.
-        RondiTrackTelemetry.ContributionsRecorded.Add(1);
-
-        return contribution;
+        return (contribution, false);
     }
 
     public async Task<IReadOnlyList<PayoutOrderEntryResponse>> GetPayoutOrderAsync(
@@ -388,7 +405,7 @@ public class RondiTrackService : IRondiTrackService
     // Gets paginated contribution history across all cycles.
     public Task<PagedResponse<ContributionResponse>> GetContributionHistoryAsync(
         int stokvelId,
-        ContributionPageRequest request)
+        ContributionHistoryRequest request)
     {
         return _repository.GetContributionHistoryAsync(stokvelId, request);
     }

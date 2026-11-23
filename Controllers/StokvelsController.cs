@@ -8,7 +8,6 @@ using RondiTrack.Mappers;
 using RondiTrack.Models;
 using RondiTrack.Repositories;
 using RondiTrack.Services;
-using RondiTrack.Idempotency;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using RondiTrack.Constants;
@@ -25,18 +24,15 @@ public class StokvelsController : ControllerBase
     private readonly IRondiTrackService _service;
     private readonly IAuthorizationService _authorization;
     // Check whether a contribution request has already been processed.
-    private readonly IIdempotencyStore _idempotencyStore;
 
     public StokvelsController(
     IRondiTrackRepository repository,
     IRondiTrackService service,
-    IAuthorizationService authorization,
-    IIdempotencyStore idempotencyStore)
+    IAuthorizationService authorization)
     {
         _repository = repository;
         _service = service;
         _authorization = authorization;
-        _idempotencyStore = idempotencyStore;
     }
 
     // Get the authenticated user's ID from their JWT.
@@ -180,11 +176,21 @@ public class StokvelsController : ControllerBase
         if (stokvel is null)
             return NotFound();
 
+        const string stale = "This stokvel changed. Review the latest details and try again.";
+        if (request.Version is Guid version && version != stokvel.Version)
+            return Problem(statusCode: 409, detail: stale);
+
         StokvelMapper.Update(stokvel, request);
 
-        var updated = await _repository.UpdateStokvelAsync(stokvel);
-
-        return updated ? NoContent() : NotFound();
+        try
+        {
+            var updated = await _repository.UpdateStokvelAsync(stokvel);
+            return updated ? NoContent() : NotFound();
+        }
+        catch (Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException)
+        {
+            return Problem(statusCode: 409, detail: stale);
+        }
     }
 
     // Only the Chairperson can delete a stokvel.
@@ -328,11 +334,7 @@ public class StokvelsController : ControllerBase
                 return Forbid();
         }
 
-        // Check whether this idempotency key was already processed.
-        var existingRecord = await _idempotencyStore.GetAsync(idempotencyKey);
-
-        // Record the contribution or return the existing result.
-        var contribution = await _service.RecordContributionAsync(
+        var (contribution, replayed) = await _service.RecordCyclePaymentAsync(
             stokvelId,
             request.UserId,
             cycleId,
@@ -341,7 +343,7 @@ public class StokvelsController : ControllerBase
 
         // Tell the frontend whether the request was replayed.
         Response.Headers["Idempotency-Replayed"] =
-            existingRecord is not null ? "true" : "false";
+            replayed ? "true" : "false";
 
         return StatusCode(
             StatusCodes.Status201Created,
@@ -387,7 +389,7 @@ public class StokvelsController : ControllerBase
     public async Task<ActionResult<PagedResponse<ContributionResponse>>>
         GetContributionHistory(
             int stokvelId,
-            [FromQuery] ContributionPageRequest request)
+            [FromQuery] ContributionHistoryRequest request)
     {
         // Only authenticated stokvel members can view history.
         var accessFailure = await CheckAccessAsync(stokvelId);

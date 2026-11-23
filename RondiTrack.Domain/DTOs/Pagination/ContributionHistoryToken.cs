@@ -11,6 +11,8 @@ public class ContributionHistoryToken
 
     public int StokvelId { get; set; }
     public int? UserId { get; set; }
+    public int? CycleId { get; set; }
+    public string? Status { get; set; }
     public DateTime? From { get; set; }
     public DateTime? To { get; set; }
 

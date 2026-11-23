@@ -11,18 +11,15 @@ public class HousekeepingService : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly TimeProvider _timeProvider;
-    private readonly IIdempotencyStore _idempotencyStore;
     private readonly ILogger<HousekeepingService> _logger;
 
     public HousekeepingService(
         IServiceScopeFactory scopeFactory,
         TimeProvider timeProvider,
-        IIdempotencyStore idempotencyStore,
         ILogger<HousekeepingService> logger)
     {
         _scopeFactory = scopeFactory;
         _timeProvider = timeProvider;
-        _idempotencyStore = idempotencyStore;
         _logger = logger;
     }
 
@@ -72,9 +69,8 @@ public class HousekeepingService : BackgroundService
                 .Where(token => token.ExpiresAt <= now)
                 .ExecuteDeleteAsync(cancellationToken);
 
-            // Remove expired idempotency records from memory.
-            var deletedRecords =
-                await _idempotencyStore.RemoveExpiredAsync();
+            var idempotencyStore = scope.ServiceProvider.GetRequiredService<IIdempotencyStore>();
+            var deletedRecords = await idempotencyStore.RemoveExpiredAsync();
 
             _logger.LogInformation(
                 "Housekeeping completed. Removed {TokenCount} expired refresh tokens and {RecordCount} expired idempotency records.",

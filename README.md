@@ -3168,3 +3168,10 @@ rules and transactions are unchanged. `Assignment103Tests` verifies the real
 HTTP contract, access, order, next, paid date/amount and empty service result.
 No packages or database migrations were added. Export `/openapi/v1.json` using
 `RONDITRACK_CONTRACT_EXPORT` with this test. Submission/PR is handled by the owner.
+
+
+## Assignment 11.3 mobile contract
+
+- Contribution history accepts `cycleId` and `status` (`Paid`, `Confirmed` or `Pending`) alongside `userId`, UTC `from` (inclusive), and UTC `to` (exclusive). Filters are applied before pagination and bound to `pageToken`. A null `nextPageToken` ends the list. Unfiltered history continues to return timestamped payments. Choose `Pending` to see rows without a payment timestamp; a date bound excludes those rows.
+- Stokvel detail includes a `version`. Clients editing a stokvel send that value in the PUT body. A stale version returns 409 with ?This stokvel changed. Review the latest details and try again.? Fetch the detail again before another edit. The version stays optional for older clients, and PostgreSQL still detects races during a concurrent write.
+- Contribution idempotency receipts live in PostgreSQL for 24 hours. The payment and its receipt commit together. An identical retry returns the original result even after an API restart. The cycle endpoint marks it with `Idempotency-Replayed: true`. The same key with a changed payload returns 409. The contribution's database key also prevents a second payment for the same stokvel, member, and cycle after the receipt expires.

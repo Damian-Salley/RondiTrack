@@ -12,6 +12,7 @@ public static class StokvelMapper
         return new StokvelResponse
         {
             Id = stokvel.Id,
+            Version = stokvel.Version,
             Name = stokvel.Name,
             ContributionAmount = stokvel.ContributionAmount,
             MemberCount = stokvel.Members.Count

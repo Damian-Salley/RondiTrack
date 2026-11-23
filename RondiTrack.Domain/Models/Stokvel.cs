@@ -5,6 +5,7 @@ using RondiTrack.Exceptions;
 public class Stokvel
 {
     public int Id { get; private set; }
+    public Guid Version { get; private set; }
     public string Name { get; private set; }
     public decimal ContributionAmount { get; private set; }
 
@@ -107,6 +108,7 @@ public class Stokvel
 
         ContributionAmount = contributionAmount;
         Name = name;
+        Version = Guid.NewGuid();
     }
 
     //Method to remove a member from the stokvel

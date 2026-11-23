@@ -378,9 +378,9 @@ builder.Services.AddScoped<
     IRondiTrackRepository,
     EfRondiTrackRepository>();
 
-builder.Services.AddSingleton<
+builder.Services.AddScoped<
     IIdempotencyStore,
-    InMemoryIdempotencyStore>();
+    PostgresIdempotencyStore>();
 
 builder.Services.AddScoped<
     IRondiTrackService,
