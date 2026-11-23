@@ -215,20 +215,31 @@ public class EfRondiTrackRepository : IRondiTrackRepository
     // Adds a contribution to the database.
     public async Task AddContributionAsync(Contribution contribution)
     {
+        if (_context.Database.CurrentTransaction is not null)
+        {
+            await SaveContributionAsync(contribution);
+            return;
+        }
+
         await _context.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
         {
             await using var tx = await _context.Database.BeginTransactionAsync();
             // Synchronize with manual closes, proof changes and the monthly job.
             await _context.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(64001)");
-            var status = await _context.ContributionCycles.AsNoTracking()
-                .Where(c => c.Id == contribution.Cycle).Select(c => c.Status).SingleAsync();
-            if (status != "Active")
-                throw new RondiTrack.Exceptions.BusinessRuleException("This cycle is closed.");
-            if (_context.Entry(contribution).State == EntityState.Detached)
-                await _context.Contributions.AddAsync(contribution);
-            await _context.SaveChangesAsync();
+            await SaveContributionAsync(contribution);
             await tx.CommitAsync();
         });
+    }
+
+    private async Task SaveContributionAsync(Contribution contribution)
+    {
+        var status = await _context.ContributionCycles.AsNoTracking()
+            .Where(c => c.Id == contribution.Cycle).Select(c => c.Status).SingleAsync();
+        if (status != "Active")
+            throw new RondiTrack.Exceptions.BusinessRuleException("This cycle is closed.");
+        if (_context.Entry(contribution).State == EntityState.Detached)
+            await _context.Contributions.AddAsync(contribution);
+        await _context.SaveChangesAsync();
     }
 
     // Gets one specific contribution.
@@ -422,10 +433,16 @@ public class EfRondiTrackRepository : IRondiTrackRepository
     // Gets contribution history across every cycle, newest payment first.
     public async Task<PagedResponse<ContributionResponse>> GetContributionHistoryAsync(
         int stokvelId,
-        ContributionPageRequest request)
+        ContributionHistoryRequest request)
     {
         const int defaultPageSize = 20;
         const int maximumPageSize = 100;
+
+        if (request.CycleId is <= 0)
+            throw new ArgumentException("CycleId must be positive.");
+
+        if (request.Status is not (null or "Paid" or "Confirmed" or "Pending"))
+            throw new ArgumentException("Status must be Paid, Confirmed or Pending.");
 
         if (request.PageSize < 0)
             throw new ArgumentException("Page size cannot be negative.");
@@ -452,10 +469,12 @@ public class EfRondiTrackRepository : IRondiTrackRepository
             if (token is null ||
                 token.StokvelId != stokvelId ||
                 token.UserId != request.UserId ||
+                token.CycleId != request.CycleId ||
+                token.Status != request.Status ||
                 token.From != request.From ||
                 token.To != request.To ||
-                token.LastPaidAtUtc is null ||
-                token.LastPaidAtUtc.Value.Kind != DateTimeKind.Utc ||
+                (token.LastPaidAtUtc is null && request.Status != "Pending") ||
+                (token.LastPaidAtUtc is DateTime paidAt && paidAt.Kind != DateTimeKind.Utc) ||
                 token.LastCycle <= 0 ||
                 token.LastUserId <= 0)
             {
@@ -467,8 +486,16 @@ public class EfRondiTrackRepository : IRondiTrackRepository
         // A payment history only contains contributions with a payment time.
         var query = _context.Contributions.AsNoTracking()
             .Where(contribution =>
-                contribution.StokvelId == stokvelId &&
-                contribution.PaidAtUtc != null);
+                contribution.StokvelId == stokvelId);
+
+        if (request.Status != "Pending")
+            query = query.Where(contribution => contribution.PaidAtUtc != null);
+
+        if (request.CycleId is int cycleId)
+            query = query.Where(contribution => contribution.Cycle == cycleId);
+
+        if (request.Status is string status)
+            query = query.Where(contribution => contribution.Status == status);
 
         if (request.UserId.HasValue)
             query = query.Where(contribution =>
@@ -484,22 +511,22 @@ public class EfRondiTrackRepository : IRondiTrackRepository
 
         if (token is not null)
         {
-            var lastPaidAtUtc = token.LastPaidAtUtc;
+            var lastPaidAt = token.LastPaidAtUtc;
             var lastCycle = token.LastCycle;
             var lastUserId = token.LastUserId;
 
             query = query.Where(contribution =>
-                contribution.PaidAtUtc < lastPaidAtUtc ||
-                (contribution.PaidAtUtc == lastPaidAtUtc &&
-                 contribution.Cycle < lastCycle) ||
-                (contribution.PaidAtUtc == lastPaidAtUtc &&
-                 contribution.Cycle == lastCycle &&
-                 contribution.UserId < lastUserId));
+                (lastPaidAt != null &&
+                    (contribution.PaidAtUtc == null || contribution.PaidAtUtc < lastPaidAt)) ||
+                (contribution.PaidAtUtc == lastPaidAt &&
+                    (contribution.Cycle < lastCycle ||
+                        (contribution.Cycle == lastCycle && contribution.UserId < lastUserId))));
         }
 
         // Cycle + user ID break timestamp ties deterministically.
         var results = await query
-            .OrderByDescending(contribution => contribution.PaidAtUtc)
+            .OrderByDescending(contribution => contribution.PaidAtUtc != null)
+            .ThenByDescending(contribution => contribution.PaidAtUtc)
             .ThenByDescending(contribution => contribution.Cycle)
             .ThenByDescending(contribution => contribution.UserId)
             .Select(contribution => new ContributionResponse
@@ -535,6 +562,8 @@ public class EfRondiTrackRepository : IRondiTrackRepository
                 LastUserId = last.UserId,
                 StokvelId = stokvelId,
                 UserId = request.UserId,
+                CycleId = request.CycleId,
+                Status = request.Status,
                 From = request.From,
                 To = request.To
             }.Encode();

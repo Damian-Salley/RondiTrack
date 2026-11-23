@@ -25,6 +25,9 @@ public interface IRondiTrackService
         long amountInCents,
         string idempotencyKey);
 
+    Task<(Contribution Contribution, bool Replayed)> RecordCyclePaymentAsync(
+        int stokvelId, int userId, int cycle, long amountInCents, string idempotencyKey);
+
     //Gets all contributions for a specific stokvel and contribution cycle
     Task<IReadOnlyCollection<Contribution>> GetContributionsByCycleAsync(
         int stokvelId,
@@ -40,7 +43,7 @@ public interface IRondiTrackService
     // Gets paginated contribution history across all cycles.
     Task<PagedResponse<ContributionResponse>> GetContributionHistoryAsync(
         int stokvelId,
-        ContributionPageRequest request);
+        ContributionHistoryRequest request);
 
     Task<IReadOnlyList<RondiTrack.DTOs.Stokvels.PayoutOrderEntryResponse>>
         GetPayoutOrderAsync(int stokvelId, int cycleId);

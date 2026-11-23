@@ -6,6 +6,8 @@ public class StokvelResponse
 {
     public int Id { get; set; }
 
+    public Guid Version { get; set; }
+
     public string Name { get; set; } = string.Empty;
 
     // Keep the original decimal amount for existing API clients.

@@ -93,6 +93,40 @@ namespace RondiTrack.Migrations
                     b.ToTable("ContributionCycles");
                 });
 
+            modelBuilder.Entity("RondiTrack.Models.ContributionReceipt", b =>
+                {
+                    b.Property<string>("Key")
+                        .HasColumnType("text");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("numeric");
+
+                    b.Property<int>("CycleId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("ExpiresAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("PaidAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Payload")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("StokvelId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Key");
+
+                    b.HasIndex("ExpiresAtUtc");
+
+                    b.ToTable("ContributionReceipts");
+                });
+
             modelBuilder.Entity("RondiTrack.Models.CycleArrears", b =>
                 {
                     b.Property<int>("Id")
@@ -286,6 +320,10 @@ namespace RondiTrack.Migrations
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
 
                     b.HasKey("Id");
 

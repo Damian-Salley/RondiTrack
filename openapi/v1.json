@@ -1511,6 +1511,21 @@
             }
           },
           {
+            "name": "CycleId",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "Status",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "PageSize",
             "in": "query",
             "schema": {
@@ -2728,6 +2743,10 @@
             ],
             "format": "int32"
           },
+          "version": {
+            "type": "string",
+            "format": "uuid"
+          },
           "name": {
             "type": "string"
           },
@@ -2781,6 +2800,13 @@
       "UpdateStokvelRequest": {
         "type": "object",
         "properties": {
+          "version": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
           "name": {
             "type": "string"
           },

@@ -293,6 +293,75 @@ public class Assignment83ContributionHistoryTests
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
+    [Fact]
+    public async Task History_CombinesCycleStatusMemberAndSastDay()
+    {
+        await using var factory = new CustomWebApplicationFactory();
+        await factory.InitializeAsync();
+        var client = factory.CreateClient();
+        await CreateTestCycleAsync(client, 8341);
+        await CreateTestCycleAsync(client, 8342);
+
+        var at0030Sast = new DateTime(2026, 10, 31, 22, 30, 0, DateTimeKind.Utc);
+        var matching = new Contribution(1, 1, 8341, 500m, at0030Sast);
+        matching.Confirm();
+        var nextDay = new Contribution(3, 1, 8341, 500m,
+            new DateTime(2026, 11, 1, 22, 0, 0, DateTimeKind.Utc));
+        nextDay.Confirm();
+        var otherCycle = new Contribution(1, 1, 8342, 500m, at0030Sast);
+        otherCycle.Confirm();
+        await InsertTestContributionsAsync(factory, matching, nextDay, otherCycle,
+            new Contribution(2, 1, 8341, 500m, at0030Sast));
+
+        const string filters = "cycleId=8341&status=Confirmed" +
+            "&from=2026-10-31T22%3A00%3A00Z&to=2026-11-01T22%3A00%3A00Z";
+        var page = await client.GetFromJsonAsync<PagedResponse<ContributionResponse>>(
+            $"{HistoryUrl}?{filters}");
+        var item = Assert.Single(page!.Items);
+        Assert.Equal(8341, item.Cycle);
+        Assert.Equal(1, item.UserId);
+        Assert.Equal("Confirmed", item.Status);
+        Assert.Equal(at0030Sast, item.PaidAtUtc);
+
+        var otherMember = await client.GetFromJsonAsync<PagedResponse<ContributionResponse>>(
+            $"{HistoryUrl}?{filters}&userId=2");
+        Assert.Empty(otherMember!.Items);
+    }
+
+    [Fact]
+    public async Task History_PendingWithoutTimestampPaginatesAndBindsFilters()
+    {
+        await using var factory = new CustomWebApplicationFactory();
+        await factory.InitializeAsync();
+        var client = factory.CreateClient();
+        await CreateTestCycleAsync(client, 8351);
+
+        var first = new Contribution(1, 1, 8351, 500m);
+        var second = new Contribution(2, 1, 8351, 500m);
+        first.MarkAsPending();
+        second.MarkAsPending();
+        await InsertTestContributionsAsync(factory, first, second);
+
+        const string query = "cycleId=8351&status=Pending&pageSize=1";
+        var page = await client.GetFromJsonAsync<PagedResponse<ContributionResponse>>(
+            $"{HistoryUrl}?{query}");
+        Assert.Equal(2, Assert.Single(page!.Items).UserId);
+        Assert.NotNull(page.NextPageToken);
+
+        var cursor = Uri.EscapeDataString(page.NextPageToken);
+        var nextPage = await client.GetFromJsonAsync<PagedResponse<ContributionResponse>>(
+            $"{HistoryUrl}?{query}&pageToken={cursor}");
+        Assert.Equal(1, Assert.Single(nextPage!.Items).UserId);
+        Assert.Null(nextPage.NextPageToken);
+
+        var changedStatus = await client.GetAsync(
+            $"{HistoryUrl}?cycleId=8351&status=Paid&pageToken={cursor}");
+        var changedCycle = await client.GetAsync(
+            $"{HistoryUrl}?cycleId=8352&status=Pending&pageToken={cursor}");
+        Assert.Equal(HttpStatusCode.BadRequest, changedStatus.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, changedCycle.StatusCode);
+    }
+
     // Creates a contribution cycle using the existing API.
     private static async Task CreateTestCycleAsync(
         HttpClient client,

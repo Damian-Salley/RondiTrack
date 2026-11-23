@@ -105,7 +105,7 @@ public interface IRondiTrackRepository
     // with member filtering, UTC date filtering and pagination.
     Task<PagedResponse<ContributionResponse>> GetContributionHistoryAsync(
         int stokvelId,
-        ContributionPageRequest request);
+        ContributionHistoryRequest request);
 
     // Gets recent contributions across stokvels the user belongs to.
     Task<PagedResponse<ContributionResponse>> GetActivityAsync(

@@ -614,10 +614,16 @@ public class InMemoryRondiTrackRepository : IRondiTrackRepository
     // with member filtering, UTC date filtering and pagination.
     public Task<PagedResponse<ContributionResponse>> GetContributionHistoryAsync(
         int stokvelId,
-        ContributionPageRequest request)
+        ContributionHistoryRequest request)
     {
         const int defaultPageSize = 20;
         const int maximumPageSize = 100;
+
+        if (request.CycleId is <= 0)
+            throw new ArgumentException("CycleId must be positive.");
+
+        if (request.Status is not (null or "Paid" or "Confirmed" or "Pending"))
+            throw new ArgumentException("Status must be Paid, Confirmed or Pending.");
 
         if (request.PageSize < 0)
         {
@@ -644,6 +650,8 @@ public class InMemoryRondiTrackRepository : IRondiTrackRepository
             if (token is null ||
                 token.StokvelId != stokvelId ||
                 token.UserId != request.UserId ||
+                token.CycleId != request.CycleId ||
+                token.Status != request.Status ||
                 token.From != request.From ||
                 token.To != request.To ||
                 token.LastCycle <= 0 ||
@@ -657,6 +665,15 @@ public class InMemoryRondiTrackRepository : IRondiTrackRepository
         var query = _contributions
             .Where(contribution =>
                 contribution.StokvelId == stokvelId);
+
+        if (request.Status != "Pending")
+            query = query.Where(contribution => contribution.PaidAtUtc != null);
+
+        if (request.CycleId is int cycleId)
+            query = query.Where(contribution => contribution.Cycle == cycleId);
+
+        if (request.Status is string status)
+            query = query.Where(contribution => contribution.Status == status);
 
         if (request.UserId.HasValue)
         {
@@ -678,17 +695,21 @@ public class InMemoryRondiTrackRepository : IRondiTrackRepository
 
         if (token is not null)
         {
+            var lastPaidAt = token.LastPaidAtUtc;
+            var lastCycle = token.LastCycle;
+            var lastUserId = token.LastUserId;
+
             query = query.Where(contribution =>
-                contribution.PaidAtUtc < token.LastPaidAtUtc ||
-                (contribution.PaidAtUtc == token.LastPaidAtUtc &&
-                 contribution.Cycle < token.LastCycle) ||
-                (contribution.PaidAtUtc == token.LastPaidAtUtc &&
-                 contribution.Cycle == token.LastCycle &&
-                 contribution.UserId < token.LastUserId));
+                (lastPaidAt != null &&
+                    (contribution.PaidAtUtc == null || contribution.PaidAtUtc < lastPaidAt)) ||
+                (contribution.PaidAtUtc == lastPaidAt &&
+                    (contribution.Cycle < lastCycle ||
+                        (contribution.Cycle == lastCycle && contribution.UserId < lastUserId))));
         }
 
         var results = query
-            .OrderByDescending(contribution => contribution.PaidAtUtc)
+            .OrderByDescending(contribution => contribution.PaidAtUtc != null)
+            .ThenByDescending(contribution => contribution.PaidAtUtc)
             .ThenByDescending(contribution => contribution.Cycle)
             .ThenByDescending(contribution => contribution.UserId)
             .Take(pageSize + 1)
@@ -731,6 +752,8 @@ public class InMemoryRondiTrackRepository : IRondiTrackRepository
                 LastUserId = lastItem.UserId,
                 StokvelId = stokvelId,
                 UserId = request.UserId,
+                CycleId = request.CycleId,
+                Status = request.Status,
                 From = request.From,
                 To = request.To
             }.Encode();
